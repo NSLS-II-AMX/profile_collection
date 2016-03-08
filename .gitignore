@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# History
+history.sqlite
+
 # Distribution / packaging
 .Python
 env/
