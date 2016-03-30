@@ -21,6 +21,29 @@ class Slits(Device):
 	y_gap = Cpt(EpicsMotor, '-Ax:YGap}Mtr')
 
 
+class FESlitsCenter(PVPositionerPC):
+        setpoint = Cpt(EpicsSignal, 'center')
+        readback = Cpt(EpicsSignalRO, 't2.D')
+        stop_signal = Cpt(EpicsSignal, 'FE:C17A-CT{MC:1}allstop.VAL')
+
+
+class FESlitsGap(PVPositionerPC):
+        setpoint = Cpt(EpicsSignal, 'size')
+        readback = Cpt(EpicsSignalRO, 't2.C')
+        stop_signal = Cpt(EpicsSignal, 'FE:C17A-CT{MC:1}allstop.VAL')
+
+
+class FESlits(Device):
+        i = Cpt(EpicsMotor, '{Slt:2-Ax:I}Mtr')
+        t = Cpt(EpicsMotor, '{Slt:2-Ax:T}Mtr')
+        o = Cpt(EpicsMotor, '{Slt:1-Ax:O}Mtr')
+        b = Cpt(EpicsMotor, '{Slt:1-Ax:B}Mtr')
+        x_ctr = Cpt(FESlitsCenter, '{Slt:12-Ax:X}')
+        x_gap = Cpt(FESlitsGap,    '{Slt:12-Ax:X}')
+        y_ctr = Cpt(FESlitsCenter, '{Slt:12-Ax:Y}')
+        y_gap = Cpt(FESlitsGap,    '{Slt:12-Ax:Y}')
+
+
 class VerticalDCM(Device):
 	b = Cpt(EpicsMotor, '-Ax:B}Mtr')
 	g = Cpt(EpicsMotor, '-Ax:G}Mtr')
@@ -93,3 +116,5 @@ gonio = GoniometerStack('XF:17IDB-ES:AMX{Gon:1', name='gonio')
 ## Beam Conditioning Unit Shutter Translation
 sht = ShutterTranslation('XF:17IDB-ES:AMX{Sht:1', name='sht')
 
+## FE Slits
+fe = FESlits('FE:C17A-OP', name='fe')
