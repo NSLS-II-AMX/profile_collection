@@ -22,6 +22,7 @@ class StandardProsilica(SingleTrigger, ProsilicaDetector):
     stats2 = Cpt(StatsPlugin, 'Stats2:')
     stats3 = Cpt(StatsPlugin, 'Stats3:')
     stats4 = Cpt(StatsPlugin, 'Stats4:')
+    stats5 = Cpt(StatsPlugin, 'Stats5:')
 
 cam_fs1 = StandardProsilica('XF:17IDA-BI:AMX{FS:1-Cam:1}', name='cam_fs1')
 cam_mono = StandardProsilica('XF:17IDA-BI:AMX{Mono:DCM-Cam:1}', name='cam_mono')
@@ -36,9 +37,10 @@ cam_7 = StandardProsilica('XF:17IDB-ES:AMX{Cam:7}', name='cam_7')
 all_standard_pros = [cam_fs1, cam_mono, cam_fs2, cam_fs3, cam_fs4, cam_6, cam_7]
 
 for camera in all_standard_pros:
-    camera.read_attrs = ['stats1', 'stats2','stats3','stats4']  #, 'tiff']
+    camera.read_attrs = ['stats1', 'stats2','stats3','stats4','stats5']  #, 'tiff']
     #camera.tiff.read_attrs = []  # leaving just the 'image'
     camera.stats1.read_attrs = ['total', 'centroid']
     camera.stats2.read_attrs = ['total', 'centroid']
     camera.stats3.read_attrs = ['total', 'centroid']
     camera.stats4.read_attrs = ['total', 'centroid']
+    camera.stats5.read_attrs = ['total', 'centroid']
