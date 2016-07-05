@@ -44,3 +44,5 @@ for camera in all_standard_pros:
     camera.stats3.read_attrs = ['total', 'centroid']
     camera.stats4.read_attrs = ['total', 'centroid']
     camera.stats5.read_attrs = ['total', 'centroid']
+
+keithley = EpicsSignalRO('XF:17IDB-BI:AMX{Keith:1}readFloat', name='keithley')
