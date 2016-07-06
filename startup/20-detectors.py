@@ -41,14 +41,16 @@ cam_7_tiff = StandardProsilicaWithTIFF('XF:17IDB-ES:AMX{Cam:7}', name='cam_7_tif
 
 all_standard_pros = [cam_fs1, cam_mono, cam_fs2, cam_fs3, cam_fs4, cam_6, cam_7]
 for camera in all_standard_pros:
-    camera.read_attrs = ['stats1', 'stats5']
+    camera.read_attrs = ['stats1', 'stats2', 'stats5']
     camera.stats1.read_attrs = ['total', 'centroid']
+    camera.stats2.read_attrs = ['total', 'centroid']
     camera.stats5.read_attrs = ['total', 'centroid']
 
 all_standard_pros_tiff = [cam_fs1_tiff, cam_mono_tiff, cam_fs2_tiff, cam_fs3_tiff, cam_fs4_tiff, cam_6_tiff, cam_7_tiff]
 for camera in all_standard_pros:
-    camera.read_attrs = ['stats1', 'stats5', 'tiff']
+    camera.read_attrs = ['stats1', 'stats2', 'stats5', 'tiff']
     camera.stats1.read_attrs = ['total', 'centroid']
+    camera.stats2.read_attrs = ['total', 'centroid']
     camera.stats5.read_attrs = ['total', 'centroid']
     camera.tiff.read_attrs = []  # leaving just the 'image'
 
