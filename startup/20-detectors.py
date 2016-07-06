@@ -16,6 +16,7 @@ class StandardProsilica(SingleTrigger, ProsilicaDetector):
     image = Cpt(ImagePlugin, 'image1:')
     roi1 = Cpt(ROIPlugin, 'ROI1:')
     stats1 = Cpt(StatsPlugin, 'Stats1:')
+    stats2 = Cpt(StatsPlugin, 'Stats1:')
     stats5 = Cpt(StatsPlugin, 'Stats5:')
 
 class StandardProsilicaWithTIFF(StandardProsilica):
