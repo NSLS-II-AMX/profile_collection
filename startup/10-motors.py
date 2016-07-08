@@ -5,6 +5,8 @@ class XYMotor(Device):
 	x = Cpt(EpicsMotor, '-Ax:X}Mtr')
 	y = Cpt(EpicsMotor, '-Ax:Y}Mtr')
 
+class XYZMotor(XYMotor):
+	z = Cpt(EpicsMotor, '-Ax:Z}Mtr')
 
 class XYPitchMotor(XYMotor):
 	pitch = Cpt(EpicsMotor, '-Ax:P}Mtr')
@@ -85,7 +87,7 @@ class ShutterTranslation(Device):
 	x = Cpt(EpicsMotor, '-Ax:X}Mtr')
 
 #######################################################
-### FMX
+### AMX
 #######################################################
 
 ## High Heat Load Slits
@@ -120,3 +122,6 @@ sht = ShutterTranslation('XF:17IDB-ES:AMX{Sht:1', name='sht')
 
 ## FE Slits
 fe = FESlits('FE:C17A-OP', name='fe')
+
+## Holey Mirror
+hm = XYZMotor('XF:17IDB-ES:AMX{Mir:1', name='hm')
