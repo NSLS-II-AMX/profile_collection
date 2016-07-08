@@ -16,7 +16,7 @@ class StandardProsilica(SingleTrigger, ProsilicaDetector):
     image = Cpt(ImagePlugin, 'image1:')
     roi1 = Cpt(ROIPlugin, 'ROI1:')
     stats1 = Cpt(StatsPlugin, 'Stats1:')
-    stats2 = Cpt(StatsPlugin, 'Stats1:')
+    stats2 = Cpt(StatsPlugin, 'Stats2:')
     stats5 = Cpt(StatsPlugin, 'Stats5:')
 
 class StandardProsilicaWithTIFF(StandardProsilica):
@@ -48,7 +48,7 @@ for camera in all_standard_pros:
     camera.stats5.read_attrs = ['total', 'centroid']
 
 all_standard_pros_tiff = [cam_fs1_tiff, cam_mono_tiff, cam_fs2_tiff, cam_fs3_tiff, cam_fs4_tiff, cam_6_tiff, cam_7_tiff]
-for camera in all_standard_pros:
+for camera in all_standard_pros_tiff:
     camera.read_attrs = ['stats1', 'stats2', 'stats5', 'tiff']
     camera.stats1.read_attrs = ['total', 'centroid']
     camera.stats2.read_attrs = ['total', 'centroid']
