@@ -1,6 +1,6 @@
 from ophyd import (SingleTrigger, TIFFPlugin, ProsilicaDetector,
                    ImagePlugin, StatsPlugin, ROIPlugin, DetectorBase, HDF5Plugin,
-                   AreaDetector)
+                   TransformPlugin, ProcessPlugin, AreaDetector)
 
 import ophyd.areadetector.cam as cam
 
@@ -15,6 +15,9 @@ class TIFFPluginWithFileStore(TIFFPlugin, FileStoreTIFFIterativeWrite):
 class StandardProsilica(SingleTrigger, ProsilicaDetector):
     image = Cpt(ImagePlugin, 'image1:')
     roi1 = Cpt(ROIPlugin, 'ROI1:')
+    roi2 = Cpt(ROIPlugin, 'ROI2:')
+    trans1 = Cpt(TransformPlugin, 'Trans1:')
+    proc1 = Cpt(ProcessPlugin, 'Proc1:')
     stats1 = Cpt(StatsPlugin, 'Stats1:')
     stats2 = Cpt(StatsPlugin, 'Stats2:')
     stats5 = Cpt(StatsPlugin, 'Stats5:')
