@@ -111,6 +111,7 @@ mbpm2 = XYMotor('XF:17IDB-BI:AMX{BPM:2', name='mbpm2')
 ## Slits
 slits1 = Slits('XF:17IDA-OP:AMX{Slt:1', name='slits1')
 slits2 = Slits('XF:17IDB-OP:AMX{Slt:2', name='slits2')
+slits3 = Slits('XF:17IDB-OP:AMX{Slt:3', name='slits3')
 
 ## KB Mirror
 kbm = KBMirror('XF:17IDB-OP:AMX{Mir', name='kbm')
