@@ -4,11 +4,13 @@ from bluesky.plans import *
 from bluesky.spec_api import *
 from bluesky.callbacks import *
 from bluesky.callbacks.olog import logbook_cb_factory
-from bluesky.utils import install_qt_kicker
 
-# The following line allows bluesky and pyqt4 GUIs to play nicely together:
-install_qt_kicker()
-
+# Only install_qt_kicker if DISPLAY is set
+import os
+if "DISPLAY" in os.environ:
+    from bluesky.utils import install_qt_kicker
+    # The following line allows bluesky and pyqt4 GUIs to play nicely together:
+    install_qt_kicker()
 
 # Subscribe metadatastore to documents.
 # If this is removed, data is not saved to metadatastore.
