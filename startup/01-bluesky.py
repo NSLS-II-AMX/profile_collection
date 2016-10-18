@@ -14,7 +14,7 @@ if "DISPLAY" in os.environ:
 
 # Subscribe metadatastore to documents.
 # If this is removed, data is not saved to metadatastore.
-import metadatastore.commands
+# import metadatastore.commands
 from bluesky.global_state import gs
 
 RE = gs.RE
@@ -22,7 +22,28 @@ abort = RE.abort
 resume = RE.resume
 stop = RE.stop
 
-RE.subscribe_lossless('all', metadatastore.commands.insert)
+
+from metadatastore.mds import MDS
+# from metadataclient.mds import MDS
+from databroker import Broker
+from databroker.core import register_builtin_handlers
+from filestore.fs import FileStore
+
+
+mds = MDS({'host':'xf17id2-ca1', 'database': 'datastore', 'port': 27017, 
+           'timezone': 'US/Eastern'}, auth=False)
+# mds = MDS({'host': 'xf17id2-ca1', 'port': 7770})
+
+# pull configuration from /etc/filestore/connection.yaml or
+# /home/BLUSER/.config/filestore/connection.yml
+db = Broker(mds, FileStore({'host': 'xf17id2-ca1', 'port': 27017, 
+                            'database': 27017}))
+register_builtin_handlers(db.fs)
+# hook run engine up to metadatastore
+RE.subscribe('all', mds.insert)
+
+
+# RE.subscribe_lossless('all', metadatastore.commands.insert)
 
 
 RE.md['group'] = 'amx'
