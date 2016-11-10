@@ -5,12 +5,18 @@ from bluesky.spec_api import *
 from bluesky.callbacks import *
 from bluesky.callbacks.olog import logbook_cb_factory
 
-# Only install_qt_kicker if DISPLAY is set
+# Import matplotlib and put it in interactive mode
+import matplotlib.pyplot as plt
+plt.ion()
+
 import os
-if "DISPLAY" in os.environ:
+if is_notebook():
+    from bluesky.utils import install_nb_kicker
+    install_nb_kicker()
+else:
     from bluesky.utils import install_qt_kicker
-    # The following line allows bluesky and pyqt4 GUIs to play nicely together:
     install_qt_kicker()
+    print("Insalling Qt Kicker...")
 
 # Subscribe metadatastore to documents.
 # If this is removed, data is not saved to metadatastore.
