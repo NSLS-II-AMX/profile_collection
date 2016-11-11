@@ -21,3 +21,4 @@ class Best(Device):
 
 #best = Best('XF:16IDB-CT{Best}:BPM0:', name='best')
 bpm2 = Bpm('XF:17IDB-BI:AMX{BPM:2}', name='bpm2')
+bpm3 = Bpm('XF:17IDB-BI:AMX{BPM:3}', name='bpm3')

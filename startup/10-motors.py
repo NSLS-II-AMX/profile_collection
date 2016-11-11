@@ -107,6 +107,7 @@ tdm = TandemMirrors('XF:17IDA-OP:AMX{Mir:TDM', name='tdm')
 ## BPMS Motions
 mbpm1 = XYMotor('XF:17IDA-BI:AMX{BPM:1', name='mbpm1')
 mbpm2 = XYMotor('XF:17IDB-BI:AMX{BPM:2', name='mbpm2')
+mbpm3 = XYMotor('XF:17IDB-BI:AMX{BPM:3', name='mbpm3')
 
 ## Slits
 slits1 = Slits('XF:17IDA-OP:AMX{Slt:1', name='slits1')
