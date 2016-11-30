@@ -43,7 +43,7 @@ mds = MDS({'host':'xf17id2-ca1', 'database': 'datastore', 'port': 27017,
 # pull configuration from /etc/filestore/connection.yaml or
 # /home/BLUSER/.config/filestore/connection.yml
 db = Broker(mds, FileStore({'host': 'xf17id2-ca1', 'port': 27017, 
-                            'database': 27017}))
+                            'database': 'filestore'}))
 register_builtin_handlers(db.fs)
 # hook run engine up to metadatastore
 RE.subscribe('all', mds.insert)
