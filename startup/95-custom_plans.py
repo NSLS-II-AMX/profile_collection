@@ -1,4 +1,5 @@
 from bluesky import plans as bp
+from math import sin, cos, radians
 
 def mirror_scan(mir, start, end, steps, gap=None, speed=None, camera=None):
     """Scans a slit aperture center over a mirror against a camera
@@ -11,8 +12,8 @@ def mirror_scan(mir, start, end, steps, gap=None, speed=None, camera=None):
 
          mirror |    slits    |    camera
         --------+-------------+--------------
-          kbh   | slt:2 horiz |   Low Mag
-          kbv   | slt:2 vert  |   Low Mag
+          kbh   | slt:2 horiz |   High Mag
+          kbv   | slt:2 vert  |   High Mag
 
     start: float
         The starting position (um) of the aperture center
@@ -44,7 +45,7 @@ def mirror_scan(mir, start, end, steps, gap=None, speed=None, camera=None):
             'slt_minus': slits2.i,
             'slt_ctr': slits2.x_ctr,
             'slt_gap': slits2.x_gap,
-            'camera': cam_6, # Lo-Mag
+            'camera': cam_7, # Hi-Mag
             'encoder_idx': 2,
         },
         'kbv': {
@@ -53,7 +54,7 @@ def mirror_scan(mir, start, end, steps, gap=None, speed=None, camera=None):
             'slt_minus': slits2.b,
             'slt_ctr': slits2.y_ctr,
             'slt_gap': slits2.y_gap,
-            'camera': cam_6, # Lo-mag
+            'camera': cam_7, # Hi-mag
             'encoder_idx': 3,
         },
     }
@@ -227,6 +228,175 @@ def mirror_scan(mir, start, end, steps, gap=None, speed=None, camera=None):
         yield from bp.collect(flyer, stream=True)
 
         yield from bp.mv(stats.ts_control, "Stop")
+
+    yield from inner()
+
+def focus_scan(steps, step_size=2, speed=None, cam=cam_6, filename='test', folder='/tmp/', use_roi4=False):
+    """ Scans a sample along Z against a camera, taking pictures in the process.
+    
+    Parameters
+    ----------
+
+    steps: int
+        The number of steps (number of points) to take
+
+    step_size: float
+        The size of each step (um). Default: 2 um
+
+    speed: float (default=None)
+        The speed (um/s) with which to move. If `None`, this
+        scan will try to calculate the maximum theoretical speed based on
+        the current frame rate of the camera. Failing that, the speed will
+        be arbitrarily set to 15 um/s.
+        
+    cam: camera object (default=cam_6 (Low Mag))
+        The camera that will take the pictures.
+        
+    filename: str
+        The file name for the acquired pictures. Default: 'test'
+        
+    folder: str
+        The folder where to write the images to. Default: '/tmp'
+        
+    use_roi4: bool
+        If True, temporarily set the camera ROI to the same dimensions as the ROI4
+        plugin during the acquisition. Default: False
+    """
+    if folder[-1] != '/':
+        folder += '/'
+    
+    # Devices
+    py = gonio.py
+    pz = gonio.pz
+    zebra = zebra2
+    tiff = cam.tiff
+    roi = cam.roi4
+    cam = cam.cam    
+    
+    # Calculate parameters
+    total_move = steps*step_size
+    move_slack = total_move*0.02
+    
+    if speed is None:
+        fps = cam.array_rate.value
+        if fps:
+            speed = 0.9*total_move*fps/steps
+        else:
+            speed = 15
+            
+    print("speed:", speed, "um/s")
+    
+    omega = gonio.o.user_setpoint.get()
+    
+    def calc_params(mtr):
+        f = sin(radians(-omega)) if mtr == py else cos(radians(omega))
+        cur = mtr.position
+        start = cur - f*total_move/2
+        end = cur + f*total_move/2
+        total = abs(end-start)
+        slack = move_slack*f if f else 0
+        spd = abs(speed*f) if f else 0
+        return start, end, total, slack, spd
+        
+    start_y, end_y, total_y, slack_y, speed_y = calc_params(py)
+    start_z, end_z, total_z, slack_z, speed_z = calc_params(pz)
+        
+    # Choose master motor
+    if(total_y > total_z):
+        start, end, total, encoder_idx = start_y, end_y, total_y, 1
+    else:
+        start, end, total, encoder_idx = start_z, end_z, total_z, 2
+        
+    print("Master motor:", {1:"y", 2:"z"}[encoder_idx])
+
+    zebra.setup(
+        master=encoder_idx,
+        arm_source=0, # soft
+        gate_start=start,
+        gate_width=total/steps/2,
+        gate_step=total/steps,
+        num_gates=steps,
+        direction=int(start > end),
+
+        # Pulse configuration is irrelevant
+        # Pulse width must be less than pulse step
+        pulse_width=0.5,
+        pulse_step=1,
+        capt_delay=0,
+        max_pulses=1,
+
+        # Only collect PY and PZ
+        collect=[False, True, True, False]
+    )
+    
+    @reset_positions_decorator([cam.acquire, cam.trigger_mode, cam.min_x, cam.min_y, 
+                                cam.size.size_x, cam.size.size_y, gonio.py, gonio.pz, 
+                                tiff.file_write_mode, tiff.num_capture, tiff.auto_save, 
+                                tiff.auto_increment, tiff.file_path, tiff.file_name, 
+                                tiff.file_number, tiff.enable])
+    @reset_positions_decorator([gonio.py.velocity, gonio.pz.velocity])
+    @run_decorator()
+    def inner():        
+        # Prepare Camera
+        yield from bp.mv(cam.acquire, 0)      # Stop camera...
+        yield from bp.sleep(.5)               # ...and wait for the pipeline to empty.
+        yield from bp.mv(
+            cam.trigger_mode, "Sync In 1",    # External Trigger
+            cam.array_counter, 0,
+        )
+        
+        if use_roi4:
+            yield from bp.mv(
+                cam.min_x, roi.min_xyz.min_x.get(),
+                cam.min_y, roi.min_xyz.min_y.get(),
+                cam.size.size_x, roi.size.x.get(),
+                cam.size.size_y, roi.size.y.get()
+            )
+        
+        # Prepare TIFF Plugin
+        yield from bp.mv(
+            tiff.file_write_mode, "Stream",
+            tiff.num_capture, steps,
+            tiff.auto_save, 1,
+            tiff.auto_increment, 1,
+            tiff.file_path, folder,
+            tiff.file_name, filename,
+            tiff.file_template, "%s%s_%d.tif",
+            tiff.file_number, 1,
+            tiff.enable, 1)
+        
+        yield from bp.abs_set(tiff.capture, 1)
+        
+        yield from bp.abs_set(cam.acquire, 1) # wait=False
+
+        # Move to the starting positions
+        yield from bp.mv(
+            gonio.py, start_y - slack_y,
+            gonio.pz, start_z - slack_z,
+        )
+
+        # Set velocity for the scan
+        yield from bp.mv(
+            gonio.py.velocity, speed_y,
+            gonio.pz.velocity, speed_z
+        )
+
+        # Arm Zebra
+        yield from bp.abs_set(zebra.pos_capt.arm.arm, 1)
+        
+        # Wait Zebra armed
+        while not zebra2.download_status.get():
+            time.sleep(0.1)
+        
+        # Go
+        yield from bp.mv(
+            gonio.py, end_y + slack_y,
+            gonio.pz, end_z + slack_z
+        )
+        
+        yield from abs_set(tiff.capture, 0)
+        
+        print(f"{cam.array_counter.get()} images captured")
 
     yield from inner()
 
