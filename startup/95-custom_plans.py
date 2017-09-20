@@ -1,5 +1,7 @@
 from bluesky import plans as bp
 from math import sin, cos, radians
+from databroker import get_table
+import epics
 
 def mirror_scan(mir, start, end, steps, gap=None, speed=None, camera=None):
     """Scans a slit aperture center over a mirror against a camera
@@ -399,4 +401,116 @@ def focus_scan(steps, step_size=2, speed=None, cam=cam_6, filename='test', folde
         print(f"{cam.array_counter.get()} images captured")
 
     yield from inner()
+    
+def find_peak(det, mot, start, stop, steps):
+    print(f"Scanning {mot.name} vs {det.name}...")
+    
+    uid = yield from bp.relative_scan([det], mot, start, stop, steps)
+    
+    sp = '_setpoint' if mot is ivu_gap else '_user_setpoint'
+    data = np.array(get_table(db[uid])[[det.name+'_sum_all', mot.name+sp]])[1:]
+    
+    peak_idx = np.argmax(data[:, 0])
+    peak_x = data[peak_idx, 1]
+    peak_y = data[peak_idx, 0]
+    
+    print(f"Found peak for {mot.name} at {peak_x} {mot.egu} [BPM reading {peak_y}]")
+    return peak_x, peak_y
+
+
+def set_energy(energy):
+    bpm = bpm3
+    
+    # Values on 2017-09-20
+    energies = [ 5000,  6000,  7112,  8000,  8052,  8980,  9660,  9881, 10000,
+                11000, 11564, 11867, 12000, 12400, 12658, 13000, 13475, 14000,
+                15000, 15250, 18000]
+    
+    # LookUp Tables
+    LUT = {
+        ivu_gap: (energies, [6.991, 7.964, 9.075, 6.790, 6.815, 7.365, 7.755,
+                             7.890, 7.960, 6.700, 6.940, 6.460, 6.510, 6.658,
+                             6.758, 6.890, 7.060, 7.255, 6.500, 6.574, 6.500]),
+        
+        vdcm.g: (energies, [15.830, 15.285, 15.065, 14.970, 14.890, 14.850,
+                            14.810, 14.810, 14.810, 14.790, 14.750, 14.730,
+                            14.710, 14.710, 14.690, 14.670, 14.640, 14.670,
+                            14.610, 14.610, 14.609]),
+    }
+    
+    # Last Good Position
+    LGP = {
+        vdcm.p:  6.48,
+        kbm.vx:  4500,
+        kbm.vy:  -494,
+        kbm.vp: -2547,
+        kbm.hx:   506,
+        kbm.hy:  7000,
+        kbm.hp: -2402
+    }
+    
+    # Lookup Table
+    def lut(motor):
+        return motor, np.interp(energy, *LUT[motor])
+    
+    # Last Good Position
+    def lgp(motor):
+        return motor, LGP[motor]
+    
+    yield from bp.mv(
+        *lut(ivu_gap),   # Set IVU Gap interpolated position
+        vdcm.e, energy,  # Set Bragg Energy pseudomotor
+        *lut(vdcm.g),    # Set DCM Gap interpolated position
+        *lgp(vdcm.p)     # Set Pitch to last known good position
+        
+        # Set KB from known good setpoints
+        #*lgp(kbm.vx), *lgp(kbm.vy), *lgp(kbm.vp), 
+        #*lgp(kbm.hx), *lgp(kbm.hy), *lgp(kbm.hp)
+    )
+
+    # Setup plots
+    ax1 = plt.subplot(311)
+    ax1.grid(True)
+    ax2 = plt.subplot(312)
+    ax2.grid(True)
+    ax3 = plt.subplot(313)
+    plt.tight_layout()
+    
+    # Decorate find_peaks to play along with our plot and plot the peak location
+    def find_peak_inner(detector, motor, start, stop, num, ax):
+        det_name = detector.name+'_sum_all'
+        mot_name = motor.name+'_setpoint' if motor is ivu_gap else motor.name+'_user_setpoint'
+        
+        # Prevent going below the lower limit or above the high limit
+        if motor is ivu_gap:
+            step_size = (stop - start) / (num - 1)
+            while motor.setpoint.value + start < motor.low_limit:
+                start += 5*step_size
+                stop += 5*step_size
+            
+            while motor.setpoint.value + stop > motor.high_limit:
+                start -= 5*step_size
+                stop -= 5*step_size                
+        
+        @bp.subs_decorator(LivePlot(det_name, mot_name, ax=ax))
+        def inner():
+            peak_x, peak_y = yield from find_peak(detector, motor, start, stop, num)
+            ax.plot([peak_x], [peak_y], 'or')
+            return peak_x, peak_y
+        return inner()
+    
+    # Scan DCM Pitch
+    peak_x, peak_y = yield from find_peak_inner(bpm, vdcm.p, -.03, .03, 61, ax1)
+    yield from bp.mv(vdcm.p, peak_x)
+
+    # Scan IVU Gap
+    peak_x, peak_y = yield from find_peak_inner(bpm, ivu_gap, -.05, .05, 21, ax2)
+    yield from bp.mv(ivu_gap, peak_x)
+    
+    # Get image
+    prefix = 'XF:17IDA-BI:AMX{FS:2-Cam:1}image1:'
+    image = epics.caget(prefix+'ArrayData')
+    width = epics.caget(prefix+'ArraySize0_RBV')
+    height = epics.caget(prefix+'ArraySize1_RBV')
+    ax3.imshow(image.reshape(height, width), cmap='jet')
 
