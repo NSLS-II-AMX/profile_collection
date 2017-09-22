@@ -93,6 +93,12 @@ class ShutterTranslation(Device):
 class BeamStop(Device):
     fx = Cpt(EpicsMotor, '-Ax:FX}Mtr')
     fy = Cpt(EpicsMotor, '-Ax:FY}Mtr')
+    
+class Attenuator(Device):
+    a1 = Cpt(EpicsMotor, '-Ax:1}Mtr')
+    a2 = Cpt(EpicsMotor, '-Ax:2}Mtr')
+    a3 = Cpt(EpicsMotor, '-Ax:3}Mtr')
+    a4 = Cpt(EpicsMotor, '-Ax:4}Mtr')
 
 
 #######################################################
@@ -139,3 +145,6 @@ hm = XYZMotor('XF:17IDB-ES:AMX{Mir:1', name='hm')
 
 # Beam Stop
 bs = BeamStop('XF:17IDB-ES:AMX{BS:1', name='bs')
+
+## BCU Attenuator
+atten = Attenuator('XF:17IDB-OP:AMX{Attn:BCU', name='atten')
