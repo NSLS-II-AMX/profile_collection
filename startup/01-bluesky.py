@@ -1,15 +1,3 @@
-import asyncio
-from functools import partial
-from bluesky.plans import *
-from bluesky.spec_api import *
-from bluesky.callbacks import *
-from bluesky.callbacks.olog import logbook_cb_factory
-
-# Import matplotlib and put it in interactive mode
-import matplotlib.pyplot as plt
-plt.ion()
-
-import os
 if is_notebook():
     from bluesky.utils import install_nb_kicker
     install_nb_kicker()
@@ -18,50 +6,70 @@ else:
     install_qt_kicker()
     print("Insalling Qt Kicker...")
 
+# Make ophyd listen to pyepics.
+from ophyd import setup_ophyd
+setup_ophyd()
+
+# Set up a RunEngine and use metadata backed by a sqlite file.
+from bluesky import RunEngine
+from bluesky.utils import get_history
+RE = RunEngine(get_history())
+
+# Set up a Broker.
+from databroker import Broker
+db = Broker.named('amx')
+
 # Subscribe metadatastore to documents.
 # If this is removed, data is not saved to metadatastore.
-# import metadatastore.commands
-from bluesky.global_state import gs
+RE.subscribe(db.insert)
 
-RE = gs.RE
-abort = RE.abort
-resume = RE.resume
-stop = RE.stop
+# Set up SupplementalData.
+from bluesky import SupplementalData
+sd = SupplementalData()
+RE.preprocessors.append(sd)
 
+# Add a progress bar.
+from bluesky.utils import ProgressBarManager
+pbar_manager = ProgressBarManager()
+RE.waiting_hook = pbar_manager
 
-from metadatastore.mds import MDS
-# from metadataclient.mds import MDS
-from databroker import Broker
-from databroker.core import register_builtin_handlers
-from filestore.fs import FileStore
+# Register bluesky IPython magics.
+from bluesky.magics import BlueskyMagics
+get_ipython().register_magics(BlueskyMagics)
 
+# Set up the BestEffortCallback.
+from bluesky.callbacks.best_effort import BestEffortCallback
+bec = BestEffortCallback()
+RE.subscribe(bec)
+peaks = bec.peaks  # just as alias for less typing
 
-mds = MDS({'host':'xf17id2-ca1', 'database': 'datastore', 'port': 27017, 
-           'timezone': 'US/Eastern'}, auth=False)
-# mds = MDS({'host': 'xf17id2-ca1', 'port': 7770})
+# At the end of every run, verify that files were saved and
+# print a confirmation message.
+from bluesky.callbacks.broker import verify_files_saved
+# RE.subscribe(post_run(verify_files_saved), 'stop')
 
-# pull configuration from /etc/filestore/connection.yaml or
-# /home/BLUSER/.config/filestore/connection.yml
-db = Broker(mds, FileStore({'host': 'xf17id2-ca1', 'port': 27017, 
-                            'database': 'filestore'}))
-register_builtin_handlers(db.fs)
-# hook run engine up to metadatastore
-RE.subscribe('all', mds.insert)
+# Import matplotlib and put it in interactive mode.
+import matplotlib.pyplot as plt
+plt.ion()
 
+# Make plots update live while scans run.
+from bluesky.utils import install_qt_kicker
+install_qt_kicker()
 
-# RE.subscribe_lossless('all', metadatastore.commands.insert)
+# Optional: set any metadata that rarely changes.
+# RE.md['beamline_id'] = 'YOUR_BEAMLINE_HERE'
 
+# convenience imports
+from bluesky.callbacks import *
+from bluesky.callbacks.broker import *
+from bluesky.simulators import *
+from bluesky.plans import *
+import numpy as np
 
-RE.md['group'] = 'amx'
-RE.md['beamline_id'] = 'AMX'
-RE.ignore_callback_exceptions = True 
+from pyOlog.ophyd_tools import *
 
-loop = asyncio.get_event_loop()
-loop.set_debug(False)
-# RE.verbose = True
-
-# sr_shutter_status = EpicsSignal('SR-EPS{PLC:1}Sts:MstrSh-Sts', rw=False,
-#                                 name='sr_shutter_status')
-# sr_beam_current = EpicsSignal('SR:C03-BI{DCCT:1}I:Real-I', rw=False,
-#                               name='sr_beam_current')
-
+# Uncomment the following lines to turn on verbose messages for
+# debugging.
+# import logging
+# ophyd.logger.setLevel(logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
