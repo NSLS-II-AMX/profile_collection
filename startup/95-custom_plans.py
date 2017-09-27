@@ -3,6 +3,25 @@ from math import sin, cos, radians
 from databroker import get_table
 import epics
 
+def simple_ascan(camera, stats, motor, start, end, steps):
+    """ Simple absolute scan of a single motor against a single camera.
+    
+    Automatically plots the results.
+    """
+    
+    stats_name = "_".join((camera.name,stats)) if stats else camera.name
+    try:
+        motor_name = motor.readback.name
+    except AttributeError:
+        motor_name = motor.name
+
+    @subs_decorator([LivePlot(stats_name, motor_name), LiveTable([motor_name, stats_name])])
+    @reset_positions_decorator([motor])
+    def inner():
+        yield from bp.scan([camera], motor, start, end, steps)
+        
+    yield from inner()
+
 def mirror_scan(mir, start, end, steps, gap=None, speed=None, camera=None):
     """Scans a slit aperture center over a mirror against a camera
 

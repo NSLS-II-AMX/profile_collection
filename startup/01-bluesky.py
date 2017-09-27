@@ -29,9 +29,9 @@ sd = SupplementalData()
 RE.preprocessors.append(sd)
 
 # Add a progress bar.
-from bluesky.utils import ProgressBarManager
-pbar_manager = ProgressBarManager()
-RE.waiting_hook = pbar_manager
+# from bluesky.utils import ProgressBarManager
+# pbar_manager = ProgressBarManager()
+# RE.waiting_hook = pbar_manager
 
 # Register bluesky IPython magics.
 from bluesky.magics import BlueskyMagics
@@ -40,8 +40,8 @@ get_ipython().register_magics(BlueskyMagics)
 # Set up the BestEffortCallback.
 from bluesky.callbacks.best_effort import BestEffortCallback
 bec = BestEffortCallback()
-RE.subscribe(bec)
-peaks = bec.peaks  # just as alias for less typing
+#RE.subscribe(bec)
+#peaks = bec.peaks  # just as alias for less typing
 
 # At the end of every run, verify that files were saved and
 # print a confirmation message.
