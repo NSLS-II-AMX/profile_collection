@@ -1,7 +1,9 @@
 from ophyd.mca import (EpicsMCA, EpicsDXP, Mercury1, SoftDXPTrigger)
 
 class AMXMercury(Mercury1, SoftDXPTrigger):
-    pass
+    @property
+    def hints(self):
+        return {'fields': [self.mca.rois.roi0.count.name]}
 
 mercury = AMXMercury('XF:17IDB-ES:AMX{Det:Mer}', name='mercury')
 mercury.read_attrs = ['mca.spectrum', 'mca.preset_live_time', 'mca.rois.roi0.count',
