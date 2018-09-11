@@ -1,4 +1,6 @@
+from functools import partial
 from pyOlog import SimpleOlogClient
+from bluesky.callbacks.olog import logbook_cb_factory
 
 # Set up the logbook. This configured bluesky's summaries of
 # data acquisition (scan type, ID, etc.). It does NOT affect the
