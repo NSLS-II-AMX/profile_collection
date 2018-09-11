@@ -12,7 +12,7 @@ def print_md(name, doc):
     if name == 'start':
         print('Metadata:\n', repr(doc))
 
-gs.RE.subscribe('start', print_scanid)
+RE.subscribe('start', print_scanid)
 
 # For debug purpose to see the metadata being stored
 #gs.RE.subscribe('start', print_md)
