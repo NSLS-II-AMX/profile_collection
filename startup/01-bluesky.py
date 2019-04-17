@@ -1,3 +1,14 @@
+import asyncio
+from functools import partial
+from bluesky.plans import *
+#from bluesky.spec_api import *
+from bluesky.callbacks import *
+from bluesky.callbacks.olog import logbook_cb_factory
+from bluesky.utils import install_qt_kicker
+import nslsii
+
+nslsii.configure_base(get_ipython().user_ns, 'amx')
+
 if is_notebook():
     from bluesky.utils import install_nb_kicker
     install_nb_kicker()
@@ -21,6 +32,14 @@ db = Broker.named('amx')
 
 # Subscribe metadatastore to documents.
 # If this is removed, data is not saved to metadatastore.
+
+from bluesky import RunEngine
+RE = RunEngine()
+
+abort = RE.abort
+resume = RE.resume
+stop = RE.stop
+
 RE.subscribe(db.insert)
 
 # Set up SupplementalData.
