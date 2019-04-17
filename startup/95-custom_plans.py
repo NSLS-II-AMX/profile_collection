@@ -205,7 +205,7 @@ def mirror_scan(mir, start, end, steps, gap=None, speed=None, camera=None):
     ax2.set_ylabel('Centroid Y', color='b')
 
     @subs_decorator([lp1, lp2, LiveTable([y1, y2])])
-    @reset_positions_decorator([cam.acquire, cam.trigger_mode, slt_ctr, slt_gap,
+    @reset_positions_decorator([cam.acquire, cam.trigger_mode, slt_gap, #slt_ctr, <- this fails with FailedStatus
                                 stats.enable, stats.compute_centroid])
     @reset_positions_decorator([slt_ctr.velocity]) # slt_ctr.velocity has to be restored before slt_ctr
     @run_decorator()
@@ -440,32 +440,32 @@ def find_peak(det, mot, start, stop, steps):
 def set_energy(energy):
     bpm = bpm3
     
-    # Values on 2017-09-20
-    energies = [ 5000,  6000,  7112,  8000,  8052,  8980,  9660,  9881, 10000,
+    # Values on 2017-09-20 adjusted on march 18 2019 
+    energies = [ 5000,  6000, 7112, 7950, 7951, 8000, 8052,  8980,  9660,  9881, 10000,
                 11000, 11564, 11867, 12000, 12400, 12658, 13000, 13475, 14000,
                 15000, 15250, 18000]
     
     # LookUp Tables
     LUT = {
-        ivu_gap: (energies, [6.991, 7.964, 9.075, 6.790, 6.815, 7.365, 7.755,
+        ivu_gap: (energies, [6.991, 7.964, 9.075, 9.999, 6.780, 6.790, 6.815, 7.365, 7.755,
                              7.890, 7.960, 6.700, 6.940, 6.460, 6.510, 6.658,
                              6.758, 6.890, 7.060, 7.255, 6.500, 6.574, 6.500]),
         
-        vdcm.g: (energies, [15.830, 15.285, 15.065, 14.970, 14.890, 14.850,
-                            14.810, 14.810, 14.810, 14.790, 14.750, 14.730,
-                            14.710, 14.710, 14.690, 14.670, 14.640, 14.670,
-                            14.610, 14.610, 14.609]),
+        vdcm.g: (energies, [16.030, 15.485, 15.265, 15.200, 15.199, 15.170, 15.090, 15.050,
+                            15.010, 15.010, 15.010, 14.990, 14.950, 14.930,
+                            14.910, 14.910, 14.890, 14.870, 14.840, 14.840,
+                            14.810, 14.810, 14.809]),
     }
     
     # Last Good Position
     LGP = {
-        vdcm.p:  6.48,
-        kbm.vx:  4500,
-        kbm.vy:  -494,
-        kbm.vp: -2547,
-        kbm.hx:   506,
-        kbm.hy:  7000,
-        kbm.hp: -2402
+        vdcm.p:  6.502,
+        kbm.vx:  0,
+        kbm.vy:  1.855,
+        kbm.vp: -3.651,
+        kbm.hx:   -2.295,
+        kbm.hy:  0.170,
+        kbm.hp: -3.587
     }
     
     # Lookup Table
