@@ -2,6 +2,8 @@ from bluesky import plans as bp
 from math import sin, cos, radians
 from databroker import get_table
 import epics
+import numpy as np
+
 
 def simple_ascan(camera, stats, motor, start, end, steps):
     """ Simple absolute scan of a single motor against a single camera.
@@ -426,7 +428,7 @@ def find_peak(det, mot, start, stop, steps):
     
     uid = yield from bp.relative_scan([det], mot, start, stop, steps)
     
-    sp = '_setpoint' if mot is ivu_gap else '_user_setpoint'
+    sp = '_user_setpoint' # if mot is ivu_gap else '_user_setpoint'
     data = np.array(get_table(db[uid])[[det.name+'_sum_all', mot.name+sp]])[1:]
     
     peak_idx = np.argmax(data[:, 0])
@@ -447,9 +449,9 @@ def set_energy(energy):
     
     # LookUp Tables
     LUT = {
-        ivu_gap: (energies, [6.991, 7.964, 9.075, 9.999, 6.780, 6.790, 6.815, 7.365, 7.755,
+        ivu_gap: (energies, np.array([6.991, 7.964, 9.075, 9.999, 6.780, 6.790, 6.815, 7.365, 7.755,
                              7.890, 7.960, 6.700, 6.940, 6.460, 6.510, 6.658,
-                             6.758, 6.890, 7.060, 7.255, 6.500, 6.574, 6.500]),
+                             6.758, 6.890, 24.060, 7.255, 6.500, 6.574, 6.500])*1000),
         
         vdcm.g: (energies, [16.030, 15.485, 15.265, 15.200, 15.199, 15.170, 15.090, 15.050,
                             15.010, 15.010, 15.010, 14.990, 14.950, 14.930,
@@ -498,16 +500,16 @@ def set_energy(energy):
     # Decorate find_peaks to play along with our plot and plot the peak location
     def find_peak_inner(detector, motor, start, stop, num, ax):
         det_name = detector.name+'_sum_all'
-        mot_name = motor.name+'_setpoint' if motor is ivu_gap else motor.name+'_user_setpoint'
+        mot_name = motor.name+'_user_setpoint'  # if motor is ivu_gap else motor.name+'_user_setpoint'
         
         # Prevent going below the lower limit or above the high limit
         if motor is ivu_gap:
             step_size = (stop - start) / (num - 1)
-            while motor.setpoint.value + start < motor.low_limit:
+            while motor.user_setpoint.value + start < motor.low_limit:
                 start += 5*step_size
                 stop += 5*step_size
             
-            while motor.setpoint.value + stop > motor.high_limit:
+            while motor.user_setpoint.value + stop > motor.high_limit:
                 start -= 5*step_size
                 stop -= 5*step_size                
         
@@ -523,7 +525,7 @@ def set_energy(energy):
     yield from bp.mv(vdcm.p, peak_x)
 
     # Scan IVU Gap
-    peak_x, peak_y = yield from find_peak_inner(bpm, ivu_gap, -.05, .05, 21, ax2)
+    peak_x, peak_y = yield from find_peak_inner(bpm, ivu_gap, -50, 50, 21, ax2)
     yield from bp.mv(ivu_gap, peak_x)
     
     # Get image
@@ -532,4 +534,5 @@ def set_energy(energy):
     width = epics.caget(prefix+'ArraySize0_RBV')
     height = epics.caget(prefix+'ArraySize1_RBV')
     ax3.imshow(image.reshape(height, width), cmap='jet')
+
 
