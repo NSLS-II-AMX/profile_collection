@@ -18,4 +18,7 @@ class InsertionDevice(Device):
     def stop(self, *, success=False):
         return self.gap.stop(success=success)
 
-ivu_gap = InsertionDevice('SR:C17-ID:G1{IVU21:1', name='ivu').gap
+
+ivu_gap = InsertionDevice('SR:C17-ID:G1{IVU21:1', name='ivu_gap')
+ivu_gap.gap.user_setpoint.name = 'ivu_gap_setpoint'
+ivu_gap.gap.user_readback.name = 'ivu_gap_readback'
