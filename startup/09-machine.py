@@ -1,4 +1,4 @@
-from ophyd import PVPositionerPC, Device, EpicsSignal, EpicsSignalRO, EpicsMotor
+from ophyd import Device, EpicsSignal, EpicsSignalRO, EpicsMotor
 from ophyd import Component as Cpt
 from ophyd.utils import set_and_wait
 
@@ -9,7 +9,7 @@ class InsertionDevice(Device):
               name='')
     brake = Cpt(EpicsSignal, '}BrakesDisengaged-Sts',
                 write_pv='}BrakesDisengaged-SP',
-                add_prefix=('read_pv', 'write_pv', 'suffix'))
+                kind='omitted', add_prefix=('read_pv', 'write_pv', 'suffix'))
 
     def set(self, *args, **kwargs):
         set_and_wait(self.brake, 1)

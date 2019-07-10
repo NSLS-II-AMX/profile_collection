@@ -1,4 +1,5 @@
 from ophyd import Device, Component as Cpt, EpicsMotor, EpicsSignalRO
+from ophyd import PVPositionerPC
 
 
 class XYMotor(Device):

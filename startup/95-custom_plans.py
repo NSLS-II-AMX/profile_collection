@@ -1,8 +1,13 @@
-from bluesky import plans as bp
 from math import sin, cos, radians
-from databroker import get_table
-import epics
+
 import numpy as np
+
+import epics
+
+import bluesky.plans as bp
+import bluesky.plan_stubs as bps
+import bluesky.preprocessors as bpp
+# from bluesky.callbacks import LiveTable, LivePlot
 
 
 def simple_ascan(camera, stats, motor, start, end, steps):
@@ -17,12 +22,13 @@ def simple_ascan(camera, stats, motor, start, end, steps):
     except AttributeError:
         motor_name = motor.name
 
-    @subs_decorator([LivePlot(stats_name, motor_name), LiveTable([motor_name, stats_name])])
-    @reset_positions_decorator([motor])
+    @bpp.subs_decorator([LivePlot(stats_name, motor_name), LiveTable([motor_name, stats_name])])
+    @bpp.reset_positions_decorator([motor])
     def inner():
         yield from bp.scan([camera], motor, start, end, steps)
 
     yield from inner()
+
 
 def mirror_scan(mir, start, end, steps, gap=None, speed=None, camera=None):
     """Scans a slit aperture center over a mirror against a camera
@@ -206,51 +212,51 @@ def mirror_scan(mir, start, end, steps, gap=None, speed=None, camera=None):
     ax1.set_ylabel('Centroid X', color='r')
     ax2.set_ylabel('Centroid Y', color='b')
 
-    @subs_decorator([lp1, lp2, LiveTable([y1, y2])])
-    @reset_positions_decorator([cam.acquire, cam.trigger_mode, slt_gap, #slt_ctr, <- this fails with FailedStatus
+    @bpp.subs_decorator([lp1, lp2, LiveTable([y1, y2])])
+    @bpp.reset_positions_decorator([cam.acquire, cam.trigger_mode, slt_gap, #slt_ctr, <- this fails with FailedStatus
                                 stats.enable, stats.compute_centroid])
-    @reset_positions_decorator([slt_ctr.velocity]) # slt_ctr.velocity has to be restored before slt_ctr
-    @run_decorator()
+    @bpp.reset_positions_decorator([slt_ctr.velocity]) # slt_ctr.velocity has to be restored before slt_ctr
+    @bpp.run_decorator()
     def inner():
         # Prepare statistics plugin
-        yield from bp.mv(
+        yield from bps.mv(
             stats.enable, 1,
             stats.compute_centroid, 1
         )
 
         # Prepare Camera
-        yield from bp.mv(cam.acquire, 0)      # Stop camera...
-        yield from bp.sleep(.5)               # ...and wait for the pipeline to empty.
-        yield from bp.mv(
+        yield from bps.mv(cam.acquire, 0)      # Stop camera...
+        yield from bps.sleep(.5)               # ...and wait for the pipeline to empty.
+        yield from bps.mv(
             cam.trigger_mode, "Sync In 1",    # External Trigger
             cam.array_counter, 0,
         )
-        yield from bp.abs_set(cam.acquire, 1) # wait=False
+        yield from bps.abs_set(cam.acquire, 1) # wait=False
 
         # Move to the starting positions
-        yield from bp.mv(
+        yield from bps.mv(
             slt_gap, gap,                     # Move gap to desired position
             slt_ctr, start - move_slack,      # Move slits to the beginning of the motion
             stats.ts_control, "Erase/Start",  # Prepare statistics Time Series
         )
 
         # Set Slits Center velocity for the scan
-        yield from bp.mv(slt_ctr.velocity, speed)
+        yield from bps.mv(slt_ctr.velocity, speed)
 
         # Go
-        yield from bp.kickoff(flyer, wait=True)
-        st = yield from bp.complete(flyer)
-        yield from bp.abs_set(slt_ctr, end + move_slack)
+        yield from bps.kickoff(flyer, wait=True)
+        st = yield from bps.complete(flyer)
+        yield from bps.abs_set(slt_ctr, end + move_slack)
 
         while not st.done:
-            yield from bp.collect(flyer, stream=True)
-            RE._uncollected.add(flyer)        # TODO: This is a hideous hack until the next bluesky version. Remove this line
-            yield from bp.sleep(0.5)
+            yield from bps.collect(flyer, stream=True)
+            # RE._uncollected.add(flyer)        # TODO: This is a hideous hack until the next bluesky version. Remove this line
+            yield from bps.sleep(0.5)
 
-        yield from bp.sleep(1)
-        yield from bp.collect(flyer, stream=True)
+        yield from bps.sleep(1)
+        yield from bps.collect(flyer, stream=True)
 
-        yield from bp.mv(stats.ts_control, "Stop")
+        yield from bps.mv(stats.ts_control, "Stop")
 
     yield from inner()
 
@@ -353,24 +359,24 @@ def focus_scan(steps, step_size=2, speed=None, cam=cam_6, filename='test', folde
         collect=[False, True, True, False]
     )
 
-    @reset_positions_decorator([cam.acquire, cam.trigger_mode, cam.min_x, cam.min_y,
+    @bpp.reset_positions_decorator([cam.acquire, cam.trigger_mode, cam.min_x, cam.min_y,
                                 cam.size.size_x, cam.size.size_y, gonio.py, gonio.pz,
                                 tiff.file_write_mode, tiff.num_capture, tiff.auto_save,
                                 tiff.auto_increment, tiff.file_path, tiff.file_name,
                                 tiff.file_number, tiff.enable])
-    @reset_positions_decorator([gonio.py.velocity, gonio.pz.velocity])
-    @run_decorator()
+    @bpp.reset_positions_decorator([gonio.py.velocity, gonio.pz.velocity])
+    @bpp.run_decorator()
     def inner():
         # Prepare Camera
-        yield from bp.mv(cam.acquire, 0)      # Stop camera...
-        yield from bp.sleep(.5)               # ...and wait for the pipeline to empty.
-        yield from bp.mv(
+        yield from bps.mv(cam.acquire, 0)      # Stop camera...
+        yield from bps.sleep(.5)               # ...and wait for the pipeline to empty.
+        yield from bps.mv(
             cam.trigger_mode, "Sync In 1",    # External Trigger
             cam.array_counter, 0,
         )
 
         if use_roi4:
-            yield from bp.mv(
+            yield from bps.mv(
                 cam.min_x, roi.min_xyz.min_x.get(),
                 cam.min_y, roi.min_xyz.min_y.get(),
                 cam.size.size_x, roi.size.x.get(),
@@ -378,7 +384,7 @@ def focus_scan(steps, step_size=2, speed=None, cam=cam_6, filename='test', folde
             )
 
         # Prepare TIFF Plugin
-        yield from bp.mv(
+        yield from bps.mv(
             tiff.file_write_mode, "Stream",
             tiff.num_capture, steps,
             tiff.auto_save, 1,
@@ -389,36 +395,36 @@ def focus_scan(steps, step_size=2, speed=None, cam=cam_6, filename='test', folde
             tiff.file_number, 1,
             tiff.enable, 1)
 
-        yield from bp.abs_set(tiff.capture, 1)
+        yield from bps.abs_set(tiff.capture, 1)
 
-        yield from bp.abs_set(cam.acquire, 1) # wait=False
+        yield from bps.abs_set(cam.acquire, 1) # wait=False
 
         # Move to the starting positions
-        yield from bp.mv(
+        yield from bps.mv(
             gonio.py, start_y - slack_y,
             gonio.pz, start_z - slack_z,
         )
 
         # Set velocity for the scan
-        yield from bp.mv(
+        yield from bps.mv(
             gonio.py.velocity, speed_y,
             gonio.pz.velocity, speed_z
         )
 
         # Arm Zebra
-        yield from bp.abs_set(zebra.pos_capt.arm.arm, 1)
+        yield from bps.abs_set(zebra.pos_capt.arm.arm, 1)
 
         # Wait Zebra armed
         while not zebra2.download_status.get():
             time.sleep(0.1)
 
         # Go
-        yield from bp.mv(
+        yield from bps.mv(
             gonio.py, end_y + slack_y,
             gonio.pz, end_z + slack_z
         )
 
-        yield from abs_set(tiff.capture, 0)
+        yield from bps.abs_set(tiff.capture, 0)
 
         print(f"{cam.array_counter.get()} images captured")
 
@@ -428,10 +434,10 @@ def focus_scan(steps, step_size=2, speed=None, cam=cam_6, filename='test', folde
 def find_peak(det, mot, start, stop, steps):
     print(f"Scanning {mot.name} vs {det.name}...")
 
-    uid = yield from bp.relative_scan([det], mot, start, stop, steps)
+    uid = yield from bp.rel_scan([det], mot, start, stop, steps)
 
     sp = '_setpoint' if mot is ivu_gap else '_user_setpoint'
-    data = np.array(get_table(db[uid])[[det.name + '_sum_all', mot.name + sp]])[1:]
+    data = np.array(db[uid].table()[[det.name + '_sum_all', mot.name + sp]])[1:]
 
     peak_idx = np.argmax(data[:, 0])
     peak_x = data[peak_idx, 1]
@@ -484,7 +490,7 @@ def set_energy(energy):
     def lgp(motor):
         return motor, LGP[motor]
 
-    yield from bp.mv(
+    yield from bps.mv(
         *lut(ivu_gap),   # Set IVU Gap interpolated position
         vdcm.e, energy,  # Set Bragg Energy pseudomotor
         *lut(vdcm.g),    # Set DCM Gap interpolated position
@@ -519,7 +525,7 @@ def set_energy(energy):
                 start -= 5 * step_size
                 stop -= 5 * step_size
 
-        @bp.subs_decorator(LivePlot(det_name, mot_name, ax=ax))
+        @bps.subs_decorator(LivePlot(det_name, mot_name, ax=ax))
         def inner():
             peak_x, peak_y = yield from find_peak(detector, motor, start, stop, num)
             ax.plot([peak_x], [peak_y], 'or')
@@ -528,12 +534,14 @@ def set_energy(energy):
 
     # Scan DCM Pitch
     peak_x, peak_y = yield from find_peak_inner(bpm, vdcm.p, -.03, .03, 61, ax1)
-    yield from bp.mv(vdcm.p, peak_x)
+    yield from bps.mv(vdcm.p, peak_x)
 
     # Scan IVU Gap
     peak_x, peak_y = yield from find_peak_inner(bpm, ivu_gap, -50, 50, 21, ax2)
-    yield from bp.mv(ivu_gap, peak_x)
+    yield from bps.mv(ivu_gap, peak_x)
 
+
+    # TODO: DAMA must fix this on the next visit (no cagets!).
     # Get image
     prefix = 'XF:17IDA-BI:AMX{FS:2-Cam:1}image1:'
     image = epics.caget(prefix+'ArrayData')
