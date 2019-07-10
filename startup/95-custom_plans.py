@@ -2,13 +2,15 @@ from bluesky import plans as bp
 from math import sin, cos, radians
 from databroker import get_table
 import epics
+import numpy as np
+
 
 def simple_ascan(camera, stats, motor, start, end, steps):
     """ Simple absolute scan of a single motor against a single camera.
-    
+
     Automatically plots the results.
     """
-    
+
     stats_name = "_".join((camera.name,stats)) if stats else camera.name
     try:
         motor_name = motor.readback.name
@@ -19,7 +21,7 @@ def simple_ascan(camera, stats, motor, start, end, steps):
     @reset_positions_decorator([motor])
     def inner():
         yield from bp.scan([camera], motor, start, end, steps)
-        
+
     yield from inner()
 
 def mirror_scan(mir, start, end, steps, gap=None, speed=None, camera=None):
@@ -252,9 +254,10 @@ def mirror_scan(mir, start, end, steps, gap=None, speed=None, camera=None):
 
     yield from inner()
 
+
 def focus_scan(steps, step_size=2, speed=None, cam=cam_6, filename='test', folder='/tmp/', use_roi4=False):
     """ Scans a sample along Z against a camera, taking pictures in the process.
-    
+
     Parameters
     ----------
 
@@ -269,46 +272,46 @@ def focus_scan(steps, step_size=2, speed=None, cam=cam_6, filename='test', folde
         scan will try to calculate the maximum theoretical speed based on
         the current frame rate of the camera. Failing that, the speed will
         be arbitrarily set to 15 um/s.
-        
+
     cam: camera object (default=cam_6 (Low Mag))
         The camera that will take the pictures.
-        
+
     filename: str
         The file name for the acquired pictures. Default: 'test'
-        
+
     folder: str
         The folder where to write the images to. Default: '/tmp'
-        
+
     use_roi4: bool
         If True, temporarily set the camera ROI to the same dimensions as the ROI4
         plugin during the acquisition. Default: False
     """
     if folder[-1] != '/':
         folder += '/'
-    
+
     # Devices
     py = gonio.py
     pz = gonio.pz
     zebra = zebra2
     tiff = cam.tiff
     roi = cam.roi4
-    cam = cam.cam    
-    
+    cam = cam.cam
+
     # Calculate parameters
     total_move = steps*step_size
     move_slack = total_move*0.02
-    
+
     if speed is None:
         fps = cam.array_rate.value
         if fps:
             speed = 0.9*total_move*fps/steps
         else:
             speed = 15
-            
+
     print("speed:", speed, "um/s")
-    
+
     omega = gonio.o.user_setpoint.get()
-    
+
     def calc_params(mtr):
         f = sin(radians(-omega)) if mtr == py else cos(radians(omega))
         cur = mtr.position
@@ -318,16 +321,16 @@ def focus_scan(steps, step_size=2, speed=None, cam=cam_6, filename='test', folde
         slack = move_slack*f if f else 0
         spd = abs(speed*f) if f else 0
         return start, end, total, slack, spd
-        
+
     start_y, end_y, total_y, slack_y, speed_y = calc_params(py)
     start_z, end_z, total_z, slack_z, speed_z = calc_params(pz)
-        
+
     # Choose master motor
     if(total_y > total_z):
         start, end, total, encoder_idx = start_y, end_y, total_y, 1
     else:
         start, end, total, encoder_idx = start_z, end_z, total_z, 2
-        
+
     print("Master motor:", {1:"y", 2:"z"}[encoder_idx])
 
     zebra.setup(
@@ -349,15 +352,15 @@ def focus_scan(steps, step_size=2, speed=None, cam=cam_6, filename='test', folde
         # Only collect PY and PZ
         collect=[False, True, True, False]
     )
-    
-    @reset_positions_decorator([cam.acquire, cam.trigger_mode, cam.min_x, cam.min_y, 
-                                cam.size.size_x, cam.size.size_y, gonio.py, gonio.pz, 
-                                tiff.file_write_mode, tiff.num_capture, tiff.auto_save, 
-                                tiff.auto_increment, tiff.file_path, tiff.file_name, 
+
+    @reset_positions_decorator([cam.acquire, cam.trigger_mode, cam.min_x, cam.min_y,
+                                cam.size.size_x, cam.size.size_y, gonio.py, gonio.pz,
+                                tiff.file_write_mode, tiff.num_capture, tiff.auto_save,
+                                tiff.auto_increment, tiff.file_path, tiff.file_name,
                                 tiff.file_number, tiff.enable])
     @reset_positions_decorator([gonio.py.velocity, gonio.pz.velocity])
     @run_decorator()
-    def inner():        
+    def inner():
         # Prepare Camera
         yield from bp.mv(cam.acquire, 0)      # Stop camera...
         yield from bp.sleep(.5)               # ...and wait for the pipeline to empty.
@@ -365,7 +368,7 @@ def focus_scan(steps, step_size=2, speed=None, cam=cam_6, filename='test', folde
             cam.trigger_mode, "Sync In 1",    # External Trigger
             cam.array_counter, 0,
         )
-        
+
         if use_roi4:
             yield from bp.mv(
                 cam.min_x, roi.min_xyz.min_x.get(),
@@ -373,7 +376,7 @@ def focus_scan(steps, step_size=2, speed=None, cam=cam_6, filename='test', folde
                 cam.size.size_x, roi.size.x.get(),
                 cam.size.size_y, roi.size.y.get()
             )
-        
+
         # Prepare TIFF Plugin
         yield from bp.mv(
             tiff.file_write_mode, "Stream",
@@ -385,9 +388,9 @@ def focus_scan(steps, step_size=2, speed=None, cam=cam_6, filename='test', folde
             tiff.file_template, "%s%s_%d.tif",
             tiff.file_number, 1,
             tiff.enable, 1)
-        
+
         yield from bp.abs_set(tiff.capture, 1)
-        
+
         yield from bp.abs_set(cam.acquire, 1) # wait=False
 
         # Move to the starting positions
@@ -404,59 +407,64 @@ def focus_scan(steps, step_size=2, speed=None, cam=cam_6, filename='test', folde
 
         # Arm Zebra
         yield from bp.abs_set(zebra.pos_capt.arm.arm, 1)
-        
+
         # Wait Zebra armed
         while not zebra2.download_status.get():
             time.sleep(0.1)
-        
+
         # Go
         yield from bp.mv(
             gonio.py, end_y + slack_y,
             gonio.pz, end_z + slack_z
         )
-        
+
         yield from abs_set(tiff.capture, 0)
-        
+
         print(f"{cam.array_counter.get()} images captured")
 
     yield from inner()
-    
+
+
 def find_peak(det, mot, start, stop, steps):
     print(f"Scanning {mot.name} vs {det.name}...")
-    
+
     uid = yield from bp.relative_scan([det], mot, start, stop, steps)
-    
+
     sp = '_setpoint' if mot is ivu_gap else '_user_setpoint'
-    data = np.array(get_table(db[uid])[[det.name+'_sum_all', mot.name+sp]])[1:]
-    
+    data = np.array(get_table(db[uid])[[det.name + '_sum_all', mot.name + sp]])[1:]
+
     peak_idx = np.argmax(data[:, 0])
     peak_x = data[peak_idx, 1]
     peak_y = data[peak_idx, 0]
-    
-    print(f"Found peak for {mot.name} at {peak_x} {mot.egu} [BPM reading {peak_y}]")
+
+    if mot is ivu_gap:
+        m = ivu_gap.gap
+    else:
+        m = mot
+    print(f"Found peak for {m.name} at {peak_x} {m.egu} [BPM reading {peak_y}]")
     return peak_x, peak_y
 
 
 def set_energy(energy):
     bpm = bpm3
-    
-    # Values on 2017-09-20 adjusted on march 18 2019 
+
+    # Values on 2017-09-20 adjusted on march 18 2019
     energies = [ 5000,  6000, 7112, 7950, 7951, 8000, 8052,  8980,  9660,  9881, 10000,
                 11000, 11564, 11867, 12000, 12400, 12658, 13000, 13475, 14000,
-                15000, 15250, 18000]
-    
+                15000, 15250, 17040, 18000]
+
     # LookUp Tables
     LUT = {
-        ivu_gap: (energies, [6.991, 7.964, 9.075, 9.999, 6.780, 6.790, 6.815, 7.365, 7.755,
+        ivu_gap: (energies, np.array([6.991, 7.964, 9.075, 9.999, 6.780, 6.790, 6.815, 7.365, 7.755,
                              7.890, 7.960, 6.700, 6.940, 6.460, 6.510, 6.658,
-                             6.758, 6.890, 7.060, 7.255, 6.500, 6.574, 6.500]),
-        
+                             6.758, 6.890, 7.060, 7.255, 6.500, 6.574, 7.110, 6.500])*1000),
+
         vdcm.g: (energies, [16.030, 15.485, 15.265, 15.200, 15.199, 15.170, 15.090, 15.050,
                             15.010, 15.010, 15.010, 14.990, 14.950, 14.930,
                             14.910, 14.910, 14.890, 14.870, 14.840, 14.840,
-                            14.810, 14.810, 14.809]),
+                            14.810, 14.810, 14.810, 14.809]),
     }
-    
+
     # Last Good Position
     LGP = {
         vdcm.p:  6.502,
@@ -467,23 +475,23 @@ def set_energy(energy):
         kbm.hy:  0.170,
         kbm.hp: -3.587
     }
-    
+
     # Lookup Table
     def lut(motor):
         return motor, np.interp(energy, *LUT[motor])
-    
+
     # Last Good Position
     def lgp(motor):
         return motor, LGP[motor]
-    
+
     yield from bp.mv(
         *lut(ivu_gap),   # Set IVU Gap interpolated position
         vdcm.e, energy,  # Set Bragg Energy pseudomotor
         *lut(vdcm.g),    # Set DCM Gap interpolated position
         *lgp(vdcm.p)     # Set Pitch to last known good position
-        
+
         # Set KB from known good setpoints
-        #*lgp(kbm.vx), *lgp(kbm.vy), *lgp(kbm.vp), 
+        #*lgp(kbm.vx), *lgp(kbm.vy), *lgp(kbm.vp),
         #*lgp(kbm.hx), *lgp(kbm.hy), *lgp(kbm.hp)
     )
 
@@ -494,42 +502,43 @@ def set_energy(energy):
     ax2.grid(True)
     ax3 = plt.subplot(313)
     plt.tight_layout()
-    
+
     # Decorate find_peaks to play along with our plot and plot the peak location
     def find_peak_inner(detector, motor, start, stop, num, ax):
-        det_name = detector.name+'_sum_all'
-        mot_name = motor.name+'_setpoint' if motor is ivu_gap else motor.name+'_user_setpoint'
-        
+        det_name = detector.name + '_sum_all'
+        mot_name = motor.name + '_setpoint' if motor is ivu_gap else motor.name + '_user_setpoint'
+
         # Prevent going below the lower limit or above the high limit
         if motor is ivu_gap:
             step_size = (stop - start) / (num - 1)
-            while motor.setpoint.value + start < motor.low_limit:
-                start += 5*step_size
-                stop += 5*step_size
-            
-            while motor.setpoint.value + stop > motor.high_limit:
-                start -= 5*step_size
-                stop -= 5*step_size                
-        
+            while ivu_gap.gap.user_setpoint.value + start < ivu_gap.gap.low_limit:
+                start += 5 * step_size
+                stop += 5 * step_size
+
+            while ivu_gap.gap.user_setpoint.value + stop > ivu_gap.gap.high_limit:
+                start -= 5 * step_size
+                stop -= 5 * step_size
+
         @bp.subs_decorator(LivePlot(det_name, mot_name, ax=ax))
         def inner():
             peak_x, peak_y = yield from find_peak(detector, motor, start, stop, num)
             ax.plot([peak_x], [peak_y], 'or')
             return peak_x, peak_y
         return inner()
-    
+
     # Scan DCM Pitch
     peak_x, peak_y = yield from find_peak_inner(bpm, vdcm.p, -.03, .03, 61, ax1)
     yield from bp.mv(vdcm.p, peak_x)
 
     # Scan IVU Gap
-    peak_x, peak_y = yield from find_peak_inner(bpm, ivu_gap, -.05, .05, 21, ax2)
+    peak_x, peak_y = yield from find_peak_inner(bpm, ivu_gap, -50, 50, 21, ax2)
     yield from bp.mv(ivu_gap, peak_x)
-    
+
     # Get image
     prefix = 'XF:17IDA-BI:AMX{FS:2-Cam:1}image1:'
     image = epics.caget(prefix+'ArrayData')
     width = epics.caget(prefix+'ArraySize0_RBV')
     height = epics.caget(prefix+'ArraySize1_RBV')
     ax3.imshow(image.reshape(height, width), cmap='jet')
+
 
