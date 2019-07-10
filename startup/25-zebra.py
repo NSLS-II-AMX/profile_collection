@@ -14,7 +14,7 @@ import os
 
 
 def _get_configuration_attrs(cls, *, signal_class=Signal):
-    return [sig_name for sig_name in cls.signal_names
+    return [sig_name for sig_name in cls.component_names
             if issubclass(getattr(cls, sig_name).cls, signal_class)]
 
 
