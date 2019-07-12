@@ -22,7 +22,7 @@ def simple_ascan(camera, stats, motor, start, end, steps):
     except AttributeError:
         motor_name = motor.name
 
-    @bpp.subs_decorator([LivePlot(stats_name, motor_name), LiveTable([motor_name, stats_name])])
+    # @bpp.subs_decorator([LivePlot(stats_name, motor_name), LiveTable([motor_name, stats_name])])
     @bpp.reset_positions_decorator([motor])
     def inner():
         yield from bp.scan([camera], motor, start, end, steps)
