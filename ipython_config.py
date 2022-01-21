@@ -50,7 +50,7 @@ c = get_config()
 c.StoreMagics.autorestore = True
 
 # A list of dotted module names of IPython extensions to load.
-c.InteractiveShellApp.extensions = ['pyOlog.cli.ipy']
+# c.InteractiveShellApp.extensions = ['pyOlog.cli.ipy']
 
 # Run the module as a script.
 # c.InteractiveShellApp.module_to_run = ''

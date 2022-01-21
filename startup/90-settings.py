@@ -1,3 +1,5 @@
+print(f"Loading {__file__}")
+
 
 def print_scanid(name, doc):
     global last_scan_uid

@@ -1,3 +1,5 @@
+print(f"Loading {__file__}")
+
 from ophyd import Device, Component as Cpt, EpicsMotor, EpicsSignalRO
 from ophyd import PVPositionerPC
 
@@ -100,6 +102,11 @@ class Attenuator(Device):
     a2 = Cpt(EpicsMotor, '-Ax:2}Mtr')
     a3 = Cpt(EpicsMotor, '-Ax:3}Mtr')
     a4 = Cpt(EpicsMotor, '-Ax:4}Mtr')
+    
+class Collimator(Device):
+    x = Cpt(EpicsMotor, '-Ax:X}Mtr')
+    xy = Cpt(EpicsMotor, '-Ax:XY}Mtr')
+    z = Cpt(EpicsMotor, '-Ax:Z}Mtr')
 
 
 #######################################################
@@ -149,3 +156,6 @@ bs = BeamStop('XF:17IDB-ES:AMX{BS:1', name='bs')
 
 ## BCU Attenuator
 atten = Attenuator('XF:17IDB-OP:AMX{Attn:BCU', name='atten')
+
+## Collimator
+colli = Collimator('XF:17IDB-ES:AMX{Colli:1', name='colli')

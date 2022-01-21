@@ -1,3 +1,5 @@
+print(f"Loading {__file__}")
+
 from ophyd import (SingleTrigger, TIFFPlugin, ProsilicaDetector,
                    ImagePlugin, StatsPlugin, ROIPlugin, DetectorBase, HDF5Plugin,
                    TransformPlugin, ProcessPlugin, AreaDetector, EpicsSignalRO)

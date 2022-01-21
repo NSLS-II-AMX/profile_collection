@@ -1,3 +1,5 @@
+print(f"Loading {__file__}")
+
 from ophyd import Device, EpicsSignal, EpicsSignalRO, EpicsMotor
 from ophyd import Component as Cpt
 from ophyd.utils import set_and_wait

@@ -1,8 +1,10 @@
+print(f"Loading {__file__}")
+
 import os
 import matplotlib
 from IPython import get_ipython
 
-get_ipython().run_line_magic('matplotlib', 'widget')  # i.e. %matplotlib widget
+# get_ipython().run_line_magic('matplotlib', 'widget')  # i.e. %matplotlib widget
 import matplotlib.pyplot
 
 from ophyd import Device, Component, EpicsSignal
@@ -42,6 +44,7 @@ get_ipython().register_magics(BlueskyMagics)
 # Set up the BestEffortCallback.
 from bluesky.callbacks.best_effort import BestEffortCallback
 bec = BestEffortCallback()
+bec.overplot = False
 RE.subscribe(bec)
 peaks = bec.peaks
 

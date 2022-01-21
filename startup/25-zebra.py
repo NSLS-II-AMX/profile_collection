@@ -1,3 +1,5 @@
+print(f"Loading {__file__}")
+
 from enum import IntEnum
 
 from ophyd import (Device, Component as Cpt, FormattedComponent as FC,

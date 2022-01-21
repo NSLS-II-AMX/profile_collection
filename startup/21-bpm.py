@@ -1,3 +1,5 @@
+print(f"Loading {__file__}")
+
 from ophyd import Device, EpicsSignal, Component as Cpt, EpicsSignalRO
 
 class Bpm(Device):
@@ -22,3 +24,6 @@ class Best(Device):
 #best = Best('XF:16IDB-CT{Best}:BPM0:', name='best')
 bpm2 = Bpm('XF:17IDB-BI:AMX{BPM:2}', name='bpm2')
 bpm3 = Bpm('XF:17IDB-BI:AMX{BPM:3}', name='bpm3')
+
+bpm3.kind = 'hinted'
+bpm3.sum_all.kind = 'hinted'
