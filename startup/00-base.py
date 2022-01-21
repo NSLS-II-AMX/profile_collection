@@ -4,7 +4,7 @@ import os
 import matplotlib
 from IPython import get_ipython
 
-# get_ipython().run_line_magic('matplotlib', 'widget')  # i.e. %matplotlib widget
+get_ipython().run_line_magic('matplotlib', 'widget')  # i.e. %matplotlib widget
 import matplotlib.pyplot
 
 from ophyd import Device, Component, EpicsSignal
