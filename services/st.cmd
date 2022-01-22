@@ -5,8 +5,7 @@ export USER=softioc
 export HOME=/epics/iocs/notebook
 export SHELL=bash
 
-export EPICS_CA_AUTO_ADDR_LIST="no"
-export EPICS_CA_ADDR_LIST="10.66.131.255"
+. /etc/profile.d/epics.sh
 
 log_dir="/var/log/jupyter/"
 jupyter_log="$log_dir/jupyter-amx_$(date "+%F_%H-%M-%S").log"
