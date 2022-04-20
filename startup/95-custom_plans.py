@@ -493,14 +493,14 @@ def set_energy(energy,use_diode=False):
         #                    14.799, 14.799, 14.799, 14.799, 14.799, 14.799,
         #                    14.799, 14.799, 14.799, 14.799]),
         
-        vdcm.r:  (energies, [5.706, 5.706, 5.706, 5.706, 5.706, 5.706, 5.706, 5.706, 5.706,
-                            5.707, 5.707, 5.706, 5.706, 5.706, 5.706, 5.706, 5.706, 5.706,
-                            5.706, 5.706, 5.706, 5.706, 5.706, 5.706]),
+        vdcm.r:  (energies, [5.775, 5.775, 5.775, 5.775, 5.775, 5.775, 5.775, 5.775, 5.775,
+                            5.775, 5.775, 5.775, 5.775, 5.775, 5.775, 5.775, 5.775, 5.775,
+                            5.775, 5.775, 5.775, 5.775, 5.775, 5.775]),
     }
 
     # Last Good Position
     LGP = {
-        vdcm.p:  6.61,
+        vdcm.p:  6.462,
         kbm.vx:  0,
         kbm.vy:  1.894,
         kbm.vp: -3.658,
@@ -597,7 +597,7 @@ def vdcm_rock_test(vdcm_p_range=0.02, vdcm_p_points=51, logging = True):
     """
 
     yield from bps.mv(
-        vdcm.p, 6.61     # Set Pitch interpolated position
+        vdcm.p, 6.6462     # Set Pitch interpolated position
     )
     
     ax1 = plt.subplot(111)
