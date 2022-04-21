@@ -64,6 +64,9 @@ from bluesky import RunEngine
 from bluesky.utils import get_history
 RE = RunEngine(get_history())
 
+import nslsii
+nslsii.configure_base(get_ipython().user_ns, 'amx', bec=True, pbar=False, publish_documents_with_kafka=True)
+
 # Set up SupplementalData.
 from bluesky import SupplementalData
 sd = SupplementalData()
