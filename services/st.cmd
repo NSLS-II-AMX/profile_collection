@@ -22,4 +22,4 @@ conda env list
 # symlinked to /usr/share/jupyter/kernels/collection-2019-3.0/kernel.json     #
 ###############################################################################
 
-jupyter lab --no-browser --notebook-dir=/epics/iocs/notebook/notebooks/ --ip=0.0.0.0 --port=17000 --NotebookApp.token='' --debug > $jupyter_log 2>&1
+jupyter lab --no-browser --notebook-dir=/epics/iocs/notebook/notebooks/ --ip=0.0.0.0 --port=17000 --debug > $jupyter_log 2>&1
