@@ -58,11 +58,11 @@ import uuid
 import os
 from pathlib import Path
 import numpy as np
+import appdirs
 
 # Set up a RunEngine and use metadata backed by a sqlite file.
 from bluesky import RunEngine
-from bluesky.utils import get_history
-RE = RunEngine(get_history())
+RE = RunEngine()
 
 import nslsii
 nslsii.configure_base(get_ipython().user_ns, 'amx', bec=True, pbar=False, publish_documents_with_kafka=True)
@@ -112,6 +112,16 @@ import numpy as np
 import bluesky.plans as bp
 import bluesky.plan_stubs as bps
 import bluesky.preprocessors as bpp
+
+try:
+    from bluesky.utils import PersistentDict
+    runengine_metadata_dir = appdirs.user_data_dir(appname="bluesky") / Path(
+        "runengine-metadata"
+    )
+    # PersistentDict will create the directory if it does not exist
+    RE.md = PersistentDict(runengine_metadata_dir)
+except ImportError:
+    print('Older bluesky did not have PersistentDict, moving on.')
 
 #Optional: set any metadata that rarely changes.
 RE.md['beamline_id'] = 'AMX'
