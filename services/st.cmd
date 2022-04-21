@@ -1,7 +1,7 @@
 #!/bin/bash
 
 export PATH=/opt/conda/bin/:$PATH
-export USER=softioc
+export USER=xf17id1
 export HOME=/epics/iocs/notebook
 export SHELL=bash
 
