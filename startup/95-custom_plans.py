@@ -1,3 +1,5 @@
+print(f"Loading {__file__}")
+
 from math import sin, cos, radians
 
 import numpy as np
@@ -7,7 +9,8 @@ import epics
 import bluesky.plans as bp
 import bluesky.plan_stubs as bps
 import bluesky.preprocessors as bpp
-# from bluesky.callbacks import LiveTable, LivePlot
+from bluesky.callbacks import LiveTable, LivePlot
+import os
 
 
 def simple_ascan(camera, stats, motor, start, end, steps):
@@ -435,9 +438,14 @@ def find_peak(det, mot, start, stop, steps):
     print(f"Scanning {mot.name} vs {det.name}...")
 
     uid = yield from bp.rel_scan([det], mot, start, stop, steps)
-
     sp = '_setpoint' if mot is ivu_gap else '_user_setpoint'
-    data = np.array(db[uid].table()[[det.name + '_sum_all', mot.name + sp]])[1:]
+    
+    if det.name == "bpm3":
+        detector_response_name = det.name + '_sum_all'
+    else:
+        detector_response_name = det.name
+        
+    data = np.array(db[uid].table()[[detector_response_name, mot.name + sp]])[1:]
 
     peak_idx = np.argmax(data[:, 0])
     peak_x = data[peak_idx, 1]
@@ -451,8 +459,12 @@ def find_peak(det, mot, start, stop, steps):
     return peak_x, peak_y
 
 
-def set_energy(energy):
-    bpm = bpm3
+def set_energy(energy,use_diode=False):
+    #bpm = bpm3
+    if use_diode:
+        detector_ = keithley
+    else:
+        detector_ = bpm3
 
     # Values on 2017-09-20 adjusted on march 18 2019
     energies = [ 5000,  6000, 7112, 7950, 7951, 8000, 8052,  8980,  9660,  9881, 10000,
@@ -461,25 +473,40 @@ def set_energy(energy):
 
     # LookUp Tables
     LUT = {
-        ivu_gap: (energies, np.array([6.991, 7.964, 9.075, 9.999, 6.780, 6.790, 6.815, 7.365, 7.755,
+        ivu_gap: (energies, np.array([6.983, 7.965, 9.085, 9.999, 6.780, 6.790, 6.815, 7.365, 7.755,
                              7.890, 7.960, 6.700, 6.940, 6.460, 6.510, 6.658,
-                             6.758, 6.890, 7.060, 7.255, 6.500, 6.574, 7.110, 6.500])*1000),
+                             6.758, 6.890, 7.057, 7.255, 6.500, 6.574, 7.110, 6.500])*1000),
 
-        vdcm.g: (energies, [16.030, 15.485, 15.265, 15.200, 15.199, 15.170, 15.090, 15.050,
-                            15.010, 15.010, 15.010, 14.990, 14.950, 14.930,
-                            14.910, 14.910, 14.890, 14.870, 14.840, 14.840,
-                            14.810, 14.810, 14.810, 14.809]),
+        #vdcm.g: (energies, [16.030, 15.485, 15.290, 15.200, 15.199, 15.170, 15.090, 15.050,
+        #                    15.010, 15.010, 15.010, 14.990, 14.950, 14.930,
+        #                    14.910, 14.910, 14.890, 14.870, 14.840, 14.840,
+        #                    14.810, 14.810, 14.810, 14.809]),
+        
+        #DCM Gap 100 um lower, 7Oct2021
+        #vdcm.g: (energies, [15.930, 15.385, 15.190, 15.100, 15.099, 15.070, 14.990, 14.950,
+        #                    14.910, 14.910, 14.910, 14.890, 14.850, 14.830,
+        #                    14.810, 14.810, 14.790, 14.770, 14.740, 14.740,
+        #                    14.710, 14.710, 14.710, 14.709]),
+        
+        #vdcm.g: (energies, [16.030, 15.485, 15.290, 15.200, 15.199, 15.799, 15.799, 15.799,
+        #                    15.799, 15.799, 15.799, 14.799, 14.799, 14.799,
+        #                    14.799, 14.799, 14.799, 14.799, 14.799, 14.799,
+        #                    14.799, 14.799, 14.799, 14.799]),
+        
+        vdcm.r:  (energies, [5.775, 5.775, 5.775, 5.775, 5.775, 5.775, 5.775, 5.775, 5.775,
+                            5.775, 5.775, 5.775, 5.775, 5.775, 5.775, 5.775, 5.775, 5.775,
+                            5.775, 5.775, 5.775, 5.775, 5.775, 5.775]),
     }
 
     # Last Good Position
     LGP = {
-        vdcm.p:  6.502,
+        vdcm.p:  6.462,
         kbm.vx:  0,
-        kbm.vy:  1.855,
-        kbm.vp: -3.651,
-        kbm.hx:   -2.295,
-        kbm.hy:  0.170,
-        kbm.hp: -3.587
+        kbm.vy:  1.894,
+        kbm.vp: -3.658,
+        kbm.hx: -1.844,
+        kbm.hy:  0.145,
+        kbm.hp:  3.443
     }
 
     # Lookup Table
@@ -493,8 +520,9 @@ def set_energy(energy):
     yield from bps.mv(
         *lut(ivu_gap),   # Set IVU Gap interpolated position
         vdcm.e, energy,  # Set Bragg Energy pseudomotor
-        *lut(vdcm.g),    # Set DCM Gap interpolated position
-        *lgp(vdcm.p)     # Set Pitch to last known good position
+        #*lut(vdcm.g),    # Set DCM Gap interpolated position
+        *lut(vdcm.r),     # Set DCM Roll interpolated position
+        *lgp(vdcm.p),     # Set Pitch to last known good position
 
         # Set KB from known good setpoints
         #*lgp(kbm.vx), *lgp(kbm.vy), *lgp(kbm.vp),
@@ -511,7 +539,12 @@ def set_energy(energy):
 
     # Decorate find_peaks to play along with our plot and plot the peak location
     def find_peak_inner(detector, motor, start, stop, num, ax):
-        det_name = detector.name + '_sum_all'
+
+        if detector.name == "bpm3":
+            det_name = detector.name + '_sum_all'
+        else:
+            det_name = detector.name
+            
         mot_name = motor.name + '_setpoint' if motor is ivu_gap else motor.name + '_user_setpoint'
 
         # Prevent going below the lower limit or above the high limit
@@ -525,7 +558,7 @@ def set_energy(energy):
                 start -= 5 * step_size
                 stop -= 5 * step_size
 
-        @bps.subs_decorator(LivePlot(det_name, mot_name, ax=ax))
+        @bpp.subs_decorator(LivePlot(det_name, mot_name, ax=ax))
         def inner():
             peak_x, peak_y = yield from find_peak(detector, motor, start, stop, num)
             ax.plot([peak_x], [peak_y], 'or')
@@ -533,11 +566,11 @@ def set_energy(energy):
         return inner()
 
     # Scan DCM Pitch
-    peak_x, peak_y = yield from find_peak_inner(bpm, vdcm.p, -.03, .03, 61, ax1)
+    peak_x, peak_y = yield from find_peak_inner(detector_, vdcm.p, -.03, .03, 51, ax1)
     yield from bps.mv(vdcm.p, peak_x)
 
     # Scan IVU Gap
-    peak_x, peak_y = yield from find_peak_inner(bpm, ivu_gap, -50, 50, 21, ax2)
+    peak_x, peak_y = yield from find_peak_inner(detector_, ivu_gap, -60, 60, 31, ax2)
     yield from bps.mv(ivu_gap, peak_x)
 
 
@@ -550,3 +583,43 @@ def set_energy(energy):
     ax3.imshow(image.reshape(height, width), cmap='jet')
 
 
+def vdcm_rock_test(vdcm_p_range=0.02, vdcm_p_points=51, logging = True):
+    """
+    Scan vdcm crystal 2 pitch to maximize flux on BPM1
+
+    Optional arguments:
+    vdcm_p_range: vdcm rocking curve range [mrad]. Default 0.03 mrad
+    vdcm_p_points: vdcm rocking curve points. Default 51
+
+    Example:
+    RE(vdcm_rock())
+    RE(vdcm_rock(vdcm_p_range=0.035, vdcm_p_points=71))
+    """
+
+    yield from bps.mv(
+        vdcm.p, 6.6462     # Set Pitch interpolated position
+    )
+    
+    ax1 = plt.subplot(111)
+    # Setup plots
+    ax1.grid(True)
+    # plt.tight_layout()
+
+    # Decorate find_peaks to play along with our plot and plot the peak location
+    def find_peak_inner(detector, motor, start, stop, num, ax):
+        det_name = detector.name+'_sum_all'
+        mot_name = motor.name+'_user_setpoint'
+
+        @bpp.subs_decorator(LivePlot(det_name, mot_name, ax=ax))
+        def inner():
+            peak_x, peak_y = yield from find_peak(detector, motor, start, stop, num)
+            ax.plot([peak_x], [peak_y], 'or')
+            return peak_x, peak_y
+        return inner()
+
+    # Scan DCM Pitch
+    peak_x, peak_y = yield from find_peak_inner(bpm3, vdcm.p, -vdcm_p_range, vdcm_p_range, vdcm_p_points, ax1)
+    yield from bps.mv(vdcm.p, peak_x)
+    
+    if logging:
+        print('BPM3 sum = {:.4g} A'.format(bpm3.sum_all.value))

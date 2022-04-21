@@ -1,0 +1,14 @@
+[Unit]
+Description=AMX Jupyter service
+
+[Service]
+User=xf17id1
+Group=xf17id1
+SyslogIdentifier=jupyter-amx
+TimeoutStartSec=0
+# Restart=always
+WorkingDirectory=/epics/iocs/notebook
+ExecStart=/epics/iocs/notebook/st.cmd
+
+[Install]
+WantedBy=multi-user.target
