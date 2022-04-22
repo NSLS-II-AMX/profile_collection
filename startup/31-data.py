@@ -1,3 +1,5 @@
+print(f"Loading {__file__}")
+
 last_scan_uid = None
 last_scan_id = None
 

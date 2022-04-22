@@ -1,3 +1,5 @@
+print(f"Loading {__file__}")
+
 try:
     ###############################################################################
     # TODO: remove this block once https://github.com/bluesky/ophyd/pull/959 is
@@ -86,6 +88,7 @@ get_ipython().register_magics(BlueskyMagics)
 # Set up the BestEffortCallback.
 from bluesky.callbacks.best_effort import BestEffortCallback
 bec = BestEffortCallback()
+bec.overplot = False
 RE.subscribe(bec)
 peaks = bec.peaks
 

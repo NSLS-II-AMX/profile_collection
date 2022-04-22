@@ -1,3 +1,5 @@
+print(f"Loading {__file__}")
+
 from pyOlog.ophyd_tools import get_all_positioners
 from bluesky.magics import BlueskyMagics
 

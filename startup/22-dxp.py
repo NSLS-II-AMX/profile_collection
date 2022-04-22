@@ -1,3 +1,5 @@
+print(f"Loading {__file__}")
+
 from ophyd.mca import (EpicsMCA, EpicsDXP, Mercury1, SoftDXPTrigger)
 
 class AMXMercury(Mercury1, SoftDXPTrigger):

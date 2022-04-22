@@ -1,3 +1,5 @@
+print(f"Loading {__file__}")
+
 from functools import partial
 from pyOlog import SimpleOlogClient
 from bluesky.callbacks.olog import logbook_cb_factory
@@ -13,5 +15,9 @@ generic_logbook_func = simple_olog_client.log
 configured_logbook_func = partial(generic_logbook_func, logbooks=LOGBOOKS)
 
 cb = logbook_cb_factory(configured_logbook_func)
-RE.subscribe('start', cb)
+
+# Commented out by @mrakitin on 2021-05-12 due to the following issue:
+# HTTPError: 403 Client Error: Forbidden for url: https://xf17id1-ca1.nsls2.bnl.local:9191/Olog/resources/logs
+# Prior to that, the password in /etc/pyOlog.conf was updated to correctly escape the percent sign.
+# RE.subscribe('start', cb)
 

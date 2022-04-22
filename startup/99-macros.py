@@ -1,3 +1,5 @@
+print(f"Loading {__file__}")
+
 import bluesky.plans as bp
 
 
