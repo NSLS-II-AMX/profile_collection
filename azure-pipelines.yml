@@ -3,10 +3,19 @@ resources:
     - repository: templates
       type: github
       name: NSLS-II/profile-collection-ci
-      ref: refs/heads/main
+      ref: refs/heads/2022-2.2+
       endpoint: github
 
 jobs:
-  - template: collection-2021-1.0.yml@templates
+  - template: 2022-2.3-py38.yml@templates
+    parameters:
+      beamline_acronym: AMX
+  - template: 2022-2.3-py39.yml@templates
+    parameters:
+      beamline_acronym: AMX
+  - template: 2022-2.3-py38-tiled.yml@templates
+    parameters:
+      beamline_acronym: AMX
+  - template: 2022-2.3-py39-tiled.yml@templates
     parameters:
       beamline_acronym: AMX
