@@ -105,7 +105,7 @@ def mirror_scan(mir, start, end, steps, gap=None, speed=None, camera=None):
     abs_move = abs(end - start)
     move_slack = abs_move*0.02
 
-    requested_time = cam.acquire_time.value*steps
+    requested_time = cam.acquire_time.get() * steps
     time_slack = requested_time
     total_time = requested_time + time_slack
 
@@ -114,7 +114,7 @@ def mirror_scan(mir, start, end, steps, gap=None, speed=None, camera=None):
     minus_end = end + gap / 2
 
     if speed is None:
-        fps = cam.array_rate.value
+        fps = cam.array_rate.get()
         if fps:
             speed = 0.9*abs_move*fps/steps
         else:
@@ -311,7 +311,7 @@ def focus_scan(steps, step_size=2, speed=None, cam=cam_6, filename='test', folde
     move_slack = total_move*0.02
 
     if speed is None:
-        fps = cam.array_rate.value
+        fps = cam.array_rate.get()
         if fps:
             speed = 0.9*total_move*fps/steps
         else:
@@ -550,11 +550,11 @@ def set_energy(energy,use_diode=False):
         # Prevent going below the lower limit or above the high limit
         if motor is ivu_gap:
             step_size = (stop - start) / (num - 1)
-            while ivu_gap.gap.user_setpoint.value + start < ivu_gap.gap.low_limit:
+            while ivu_gap.gap.user_setpoint.get() + start < ivu_gap.gap.low_limit:
                 start += 5 * step_size
                 stop += 5 * step_size
 
-            while ivu_gap.gap.user_setpoint.value + stop > ivu_gap.gap.high_limit:
+            while ivu_gap.gap.user_setpoint.get() + stop > ivu_gap.gap.high_limit:
                 start -= 5 * step_size
                 stop -= 5 * step_size
 
@@ -622,4 +622,4 @@ def vdcm_rock_test(vdcm_p_range=0.02, vdcm_p_points=51, logging = True):
     yield from bps.mv(vdcm.p, peak_x)
     
     if logging:
-        print('BPM3 sum = {:.4g} A'.format(bpm3.sum_all.value))
+        print('BPM3 sum = {:.4g} A'.format(bpm3.sum_all.get()))
