@@ -1,62 +1,72 @@
-from ophyd import (SingleTrigger, TIFFPlugin, ProsilicaDetector,
-                   ImagePlugin, StatsPlugin, ROIPlugin, DetectorBase, HDF5Plugin,
-                   TransformPlugin, ProcessPlugin, AreaDetector, EpicsSignalRO, EpicsSignalWithRBV,
-                   ColorConvPlugin, Device)
+from ophyd import (
+    SingleTrigger,
+    TIFFPlugin,
+    ProsilicaDetector,
+    ImagePlugin,
+    StatsPlugin,
+    ROIPlugin,
+    DetectorBase,
+    HDF5Plugin,
+    TransformPlugin,
+    ProcessPlugin,
+    AreaDetector,
+    EpicsSignalRO,
+    EpicsSignalWithRBV,
+    ColorConvPlugin,
+    Device,
+)
 
 from ophyd import Device
 
 import ophyd.areadetector.cam as cam
 
-from ophyd.areadetector.filestore_mixins import (FileStoreTIFFIterativeWrite,
-                                                 FileStoreHDF5IterativeWrite)
+from ophyd.areadetector.filestore_mixins import (
+    FileStoreTIFFIterativeWrite,
+    FileStoreHDF5IterativeWrite,
+)
 
 from ophyd import Component as Cpt
 from ophyd.status import SubscriptionStatus
 
 
 class SpecialProsilica(ProsilicaDetector):
-    cc1 = Cpt(ColorConvPlugin, 'CC1:')
-    roi1 = Cpt(ROIPlugin, 'ROI1:')
-    roi4 = Cpt(ROIPlugin, 'ROI4:')
-    trans1 = Cpt(TransformPlugin, 'Trans1:')
-    proc1 = Cpt(ProcessPlugin, 'Proc1:')
-    stats4 = Cpt(StatsPlugin, 'Stats4:')
+    cc1 = Cpt(ColorConvPlugin, "CC1:")
+    roi1 = Cpt(ROIPlugin, "ROI1:")
+    roi4 = Cpt(ROIPlugin, "ROI4:")
+    trans1 = Cpt(TransformPlugin, "Trans1:")
+    proc1 = Cpt(ProcessPlugin, "Proc1:")
+    stats4 = Cpt(StatsPlugin, "Stats4:")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.read_attrs = ['stats4',
-                           'trans1',
-                           'cc1',
-                           'proc1',
-                           'roi1',
-                           'roi4']
+        self.read_attrs = ["stats4", "trans1", "cc1", "proc1", "roi1", "roi4"]
         self.cc1.enable_on_stage()
         self.proc1.enable_on_stage()
-        self.stats4.read_attrs = ['total',
-                                  'net']
-        self.stats4.centroid.read_attrs = ['x','y']
+        self.stats4.read_attrs = ["total", "net"]
+        self.stats4.centroid.read_attrs = ["x", "y"]
 
     def stage(self):
-        #settings for smoother centroid fitting
-        self.proc1.enable_filter.put('1')
-        self.proc1.filter_type.put('RecursiveAve')
-        self.proc1.num_filter.put('5')
-        #color conversion to monochromatic for stats plugin
-        self.cc1.nd_array_port.put('PROC1')
-        self.trans1.nd_array_port.put('CC1')
-        #ROI4 must match ROI1, which defines center of rotation
-        self.roi4.min_xyz.min_x.put(f'{self.roi1.min_xyz.min_x.get()}')
-        self.roi4.min_xyz.min_y.put(f'{self.roi1.min_xyz.min_y.get()}')
+        # settings for smoother centroid fitting
+        self.proc1.enable_filter.put("1")
+        self.proc1.filter_type.put("RecursiveAve")
+        self.proc1.num_filter.put("5")
+        # color conversion to monochromatic for stats plugin
+        self.cc1.nd_array_port.put("PROC1")
+        self.trans1.nd_array_port.put("CC1")
+        # ROI4 must match ROI1, which defines center of rotation
+        self.roi4.min_xyz.min_x.put(f"{self.roi1.min_xyz.min_x.get()}")
+        self.roi4.min_xyz.min_y.put(f"{self.roi1.min_xyz.min_y.get()}")
         super().stage()
 
     def unstage(self):
-        #process plugin
-        self.proc1.num_filter.put('1')
-        self.proc1.enable_filter.put('0')
-        #put ports back for LSDC
-        self.trans1.nd_array_port.put('CAM')
-        self.cc1.nd_array_port.put('CAM')
+        # process plugin
+        self.proc1.num_filter.put("1")
+        self.proc1.enable_filter.put("0")
+        # put ports back for LSDC
+        self.trans1.nd_array_port.put("CAM")
+        self.cc1.nd_array_port.put("CAM")
         super().unstage()
+
 
 class KBTweakerAxis(Device):
     voltage = Cpt(EpicsSignal, "", kind="hinted")
@@ -112,6 +122,7 @@ class KBTweaker(Device):
     hor = Cpt(KBTweakerAxis, ":TwkCh1")
     ver = Cpt(KBTweakerAxis, ":TwkCh2")
 
+
 kbt = KBTweaker("XF:17IDB-BI:AMX{Best:2}", name="kbt")
 
-cam_hi = SpecialProsilica('XF:17IDB-ES:AMX{Cam:7}', name='cam_hi')
+cam_hi = SpecialProsilica("XF:17IDB-ES:AMX{Cam:7}", name="cam_hi")
