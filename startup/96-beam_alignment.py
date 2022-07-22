@@ -11,6 +11,8 @@ from ophyd.areadetector.filestore_mixins import (FileStoreTIFFIterativeWrite,
                                                  FileStoreHDF5IterativeWrite)
 
 from ophyd import Component as Cpt
+from ophyd.status import SubscriptionStatus
+
 
 class SpecialProsilica(ProsilicaDetector):
     cc1 = Cpt(ColorConvPlugin, 'CC1:')
@@ -19,7 +21,7 @@ class SpecialProsilica(ProsilicaDetector):
     trans1 = Cpt(TransformPlugin, 'Trans1:')
     proc1 = Cpt(ProcessPlugin, 'Proc1:')
     stats4 = Cpt(StatsPlugin, 'Stats4:')
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.read_attrs = ['stats4',
@@ -33,7 +35,7 @@ class SpecialProsilica(ProsilicaDetector):
         self.stats4.read_attrs = ['total',
                                   'net']
         self.stats4.centroid.read_attrs = ['x','y']
-    
+
     def stage(self):
         #settings for smoother centroid fitting
         self.proc1.enable_filter.put('1')
@@ -46,7 +48,7 @@ class SpecialProsilica(ProsilicaDetector):
         self.roi4.min_xyz.min_x.put(f'{self.roi1.min_xyz.min_x.get()}')
         self.roi4.min_xyz.min_y.put(f'{self.roi1.min_xyz.min_y.get()}')
         super().stage()
-        
+
     def unstage(self):
         #process plugin
         self.proc1.num_filter.put('1')
@@ -55,44 +57,61 @@ class SpecialProsilica(ProsilicaDetector):
         self.trans1.nd_array_port.put('CAM')
         self.cc1.nd_array_port.put('CAM')
         super().unstage()
-                
-class KBTweaker(Device):
-    
-    hor_voltage = Cpt(EpicsSignal, ':TwkCh1')
-    ver_voltage = Cpt(EpicsSignal, ':TwkCh2')
-    hor_voltage_step_size = Cpt(EpicsSignal, ':TwkCh1.INPA')
-    ver_voltage_step_size = Cpt(EpicsSignal, ':TwkCh2.INPA')
-    hor_step_actuate = Cpt(EpicsSignal, ':TwkCh1.B')
-    ver_step_actuate = Cpt(EpicsSignal, ':TwkCh2.B')
-    
-    def __init__(self, *args, **kwargs):
+
+class KBTweakerAxis(Device):
+    voltage = Cpt(EpicsSignal, "", kind="hinted")
+    step_size = Cpt(EpicsSignal, ".INPA", kind="config")
+    actuate = Cpt(EpicsSignal, ".B", kind="omitted")
+
+    def __init__(self, *args, voltage_limit=2, **kwargs):
         super().__init__(*args, **kwargs)
-        self.hor_voltage_step_size.put('0.05')
-        self.ver_voltage_step_size.put('0.05')
-        self.voltage_limit = 2
-        
-    def voltage_check(func):
-        def check(self, axis, direction):
-            if ((-2 < self.hor_voltage.read()['kbt_hor_voltage']['value'] < 2)
-                    and (-2 < self.ver_voltage.read()['kbt_ver_voltage']['value'] < 2)):
-                func(self, axis, direction)
-                print('voltage tweak attempted')
-            else:
-                print('voltage out of ranage, check alignment')
-        return check
-    
-    def set(self):
-        pass
-    
-    @voltage_check
-    def tweak_voltage(self, axis, direction):
-        if axis in ('h','v') and direction in ('-1','1'):
-            if axis == 'h': #-1 is outboard, 1 is inboard
-                self.hor_step_actuate.put(direction)
-            if axis == 'v': #-1 is up, 1 is down, camera coords
-                self.ver_step_actuate.put(direction)
-        else:
-            print('wrong axis or direction type')
-    
-kbt = KBTweaker('XF:17IDB-BI:AMX{Best:2}', name='kbt')      
+        # do not mutate the hardware in device init, it makes it
+        # makes profile start up have side-effects which might mess up
+        # running experiments
+        #  self.step_size.put('0.05')
+
+        self.voltage_limit = voltage_limit
+        self._status = None
+
+    def set(self, target):
+        if self._status is not None and not self._status.done:
+            raise RuntimeError("Another set is in progress")
+
+        if -self.voltage_limit < target < self.voltage_limit:
+            raise ValueError(
+                f"You passed {target!r} with out of ±{self.voltage_limit} gamut."
+            )
+        # get the step size
+        step_size = self.step_size.get()
+        # get the current voltage
+        current = self.voltage.get()
+        # compute (float) number of "steps" to take
+        num_steps = (target - current) / step_size
+
+        def deadband(*, old_value, value, **kwargs):
+            # if with in half a step size, declare victory
+            if abs(value - target) < (step_size / 2):
+                return True
+            return False
+
+        self._status = status = SubscriptionStatus(self, deadband)
+        if not status.done:
+            self.actuate.put(num_steps)
+        return status
+
+    def stop(self, *, success=False):
+        # TODO do something to actually stop the voltage moving it that is
+        # possible?
+        super().stop(success)
+        if self._status is not None and not self._status.done:
+            self._status.set_exception(Exception("Motion stopped"))
+            self._status = None
+
+
+class KBTweaker(Device):
+    hor = Cpt(KBTweakerAxis, ":TwkCh1")
+    ver = Cpt(KBTweakerAxis, ":TwkCh2")
+
+kbt = KBTweaker("XF:17IDB-BI:AMX{Best:2}", name="kbt")
+
 cam_hi = SpecialProsilica('XF:17IDB-ES:AMX{Cam:7}', name='cam_hi')
