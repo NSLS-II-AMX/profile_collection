@@ -566,11 +566,11 @@ def set_energy(energy,use_diode=False):
         return inner()
 
     # Scan DCM Pitch
-    peak_x, peak_y = yield from find_peak_inner(detector_, vdcm.p, -.03, .03, 51, ax1)
+    peak_x, peak_y = yield from find_peak_inner(detector_, vdcm.p, -0.02, 0.02, 41, ax1)
     yield from bps.mv(vdcm.p, peak_x)
 
     # Scan IVU Gap
-    peak_x, peak_y = yield from find_peak_inner(detector_, ivu_gap, -60, 60, 31, ax2)
+    peak_x, peak_y = yield from find_peak_inner(detector_, ivu_gap, -40, 40, 21, ax2)
     yield from bps.mv(ivu_gap, peak_x)
 
 
