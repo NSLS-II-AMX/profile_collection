@@ -282,26 +282,24 @@ class RotationAxisAligner(Device):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.proposed_rot_axis.put(self.cam_hi.roi1.min_xyz.min_y.get() + 256)
+        self.current_rot_axis.put(self.cam_hi.roi1.min_xyz.min_y.get() + 256)
         self.proposed_rot_axis.subscribe(
             self._update_rot_axis, event_type="value", run=False
         )
 
     def _update_rois(self, delta_pix, **kwargs):
-        self.cam_hi.roi1.min_xyz.min_y.put(
-            round(self.current_rot_axis.get()) - 256
-        )
+        self.cam_hi.roi1.min_xyz.min_y.put(self.current_rot_axis.get() - 256)
         self.cam_lo.roi1.min_xyz.min_y.put(
             delta_pix * (self.cam_lo.pix_per_um / self.cam_hi.pix_per_um)
             + self.cam_lo.roi1.min_xyz.min_y.get()
         )
 
-    def _update_rot_axis(self):
+    def _update_rot_axis(self, *args, **kwargs):
         delta_pix = round(
             self.current_rot_axis.get() - self.proposed_rot_axis.get()
         )
         if abs(delta_pix) < self.acceptance_criterium.get():
-            self.current_rot_axis.put(self.proposed_rotation_axis)
+            self.current_rot_axis.put(self.proposed_rot_axis.get())
             self._update_rois(delta_pix)
 
 

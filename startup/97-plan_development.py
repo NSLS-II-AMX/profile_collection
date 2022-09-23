@@ -41,12 +41,8 @@ def measure_tip_dist(detector, *, coarse_align_pix=215):
 def rot_pin_align(rot_aligner, rot_motor, long_motor):
 
     LAST_X = 5100
-    LAST_Y = -450
-    LAST_Z = 200
 
-    # move to last centered position
-    yield from bps.mv(rot_aligner.gc_positioner.real_y, LAST_Y)
-    yield from bps.mv(rot_aligner.gc_positioner.real_z, LAST_Z)
+    # get x in range
     yield from bps.mv(long_motor, LAST_X)
 
     # find optimal omega for sheath opening
@@ -111,4 +107,4 @@ def rot_pin_align(rot_aligner, rot_motor, long_motor):
     best_cam_y = yield from tune_pin_inner(rot_aligner.gc_positioner.cam_y)
     yield from bps.mv(rot_aligner.gc_positioner.cam_y, best_cam_y)
 
-    yield from bps.abs_set(rot_aligner.proposed_rot_axis, rot_axis_pix)
+    yield from bps.abs_set(rot_aligner.proposed_rot_axis, rot_axis_pix.item(0))
