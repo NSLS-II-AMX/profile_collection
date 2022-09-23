@@ -12,6 +12,7 @@ from ophyd import Component as Cpt
 from ophyd.areadetector.plugins import PluginBase, register_plugin
 from ophyd.areadetector.base import DDC_EpicsSignal, DDC_EpicsSignalRO
 from ophyd.areadetector.base import ADComponent as ADCpt
+from ophyd.signal import DerivedSignal
 
 
 class GonioCameraPositioner(PseudoPositioner):
@@ -127,18 +128,50 @@ class SingleTriggerProsilica(SingleTrigger, ProsilicaDetector):
 
 
 class RotAlignLowMag(StandardProsilica):
-    # cc1 = Cpt(ColorConvPlugin, "CC1:")
+    cv1 = Cpt(CVPlugin, "CV1:")
+    cam_mode = Cpt(Signal, value=None, kind="config")
     pix_per_um = Cpt(Signal, value=1, kind="config")
+    roi_offset = Cpt(Signal, value=266, kind="config")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.read_attrs = ["stats1", "stats2"]
+        self.read_attrs = ["cv1", "stats1", "stats2"]
+        self.cv1.read_attrs = ["outputs"]
+        self.cv1.outputs.read_attrs = ["output1"]
         self.stats1.read_attrs = ["total"]
         self.stats2.read_attrs = ["total"]
-        self.stage_sigs.cam = {
-            "acquire_time": 0.0025,
-            "acquire_period": 1,
-        }
+        self.cam_mode.subscribe(self._update_stage_sigs, event_type="value")
+        self.roi1.min_xyz.min_y.subscribe(self._sync_rois, event_type="value")
+
+    def _update_stage_sigs(self, *args, **kwargs):
+        self.stage_sigs.clear()
+        self.stage_sigs.update(
+            [
+                ("cam.acquire", 0),
+                ("cam.image_mode", 1),
+                ("acquire_time", 0.0025),
+                ("acquire_period", 1),
+            ]
+        )
+        if self.cam_mode.get() == "centroid":
+            self.stage_sigs.update(
+                [
+                    ("cv1.enable", 1),
+                    ("cv1.func_sets.func_set2", "Centroid Identification"),
+                    ("cv1.inputs.input1", 1),
+                    ("cv1.inputs.input2", 5),
+                    ("cv1.inputs.input3", 50),
+                    ("cv1.inputs.input4", 3000000),
+                    ("cv1.inputs.input5", 5000),
+                ]
+            )
+        elif self.cam_mode.get() == "find_sheath":
+            pass
+
+    def _sync_rois(self, *args, **kwargs):
+        self.roi2.min_xyz.min_y.put(
+            self.roi1.min_xyz.min_y.get() - self.roi_offset.get()
+        )
 
 
 class RotAlignHighMag(StandardProsilica):
@@ -151,14 +184,9 @@ class RotAlignHighMag(StandardProsilica):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.read_attrs = [
-            "cc1",
             "cv1",
-            "roi1",
-            "roi2",
-            "roi3",
             "roi4",
             "stats4",
-            "trans1",
         ]
 
         [
@@ -166,10 +194,10 @@ class RotAlignHighMag(StandardProsilica):
             for _plugin in [
                 self.cv1,
                 self.roi4,
-                self.stats1,
                 self.stats4,
                 self.proc1,
                 self.cc1,
+                self.trans1,
             ]
         ]
         self.cv1.outputs.read_attrs = [
@@ -196,6 +224,7 @@ class RotAlignHighMag(StandardProsilica):
                 [
                     ("cam.acquire_time", 0.15),
                     ("cam.acquire_period", 0.15),
+                    ("cv1.enable", 1),
                     ("cv1.nd_array_port", "ROI4"),
                     ("cv1.func_sets.func_set1", "Canny Edge Detection"),
                     ("cv1.inputs.input1", 35),
@@ -204,7 +233,7 @@ class RotAlignHighMag(StandardProsilica):
                     ("cv1.inputs.input4", 5),
                     ("roi4.min_xyz.min_x", 672),
                     ("roi4.min_xyz.min_y", 0),
-                    ("roi4.size.x", 898),
+                    ("roi4.size.x", 1100),
                     ("roi4.size.y", 1246),
                 ]
             )
@@ -239,20 +268,41 @@ class RotationAxisAligner(Device):
     current_rot_axis = Cpt(
         Signal,
         value=None,
-        doc="current rotation axis in pixels based on high mag ROI",
+        doc="current rotation axis in hi mag pixels based on high mag ROI",
+    )
+    proposed_rot_axis = Cpt(
+        Signal, value=None, doc="proposed rot axis in pixels"
+    )
+    acceptance_criterium = Cpt(
+        Signal,
+        value=20,
+        doc="difference in pixels we will accept",
+        kind="config",
     )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.current_rot_axis.put(self.cam_hi.roi1.min_xyz.min_y.get() + 256)
-        self.current_rot_axis.subscribe(
-            self._update_roi, event_type="value", run=False
+        self.proposed_rot_axis.put(self.cam_hi.roi1.min_xyz.min_y.get() + 256)
+        self.proposed_rot_axis.subscribe(
+            self._update_rot_axis, event_type="value", run=False
         )
 
-    def _update_roi(self, *args, **kwargs):
+    def _update_rois(self, delta_pix, **kwargs):
         self.cam_hi.roi1.min_xyz.min_y.put(
             round(self.current_rot_axis.get()) - 256
         )
+        self.cam_lo.roi1.min_xyz.min_y.put(
+            delta_pix * (self.cam_lo.pix_per_um / self.cam_hi.pix_per_um)
+            + self.cam_lo.roi1.min_xyz.min_y.get()
+        )
+
+    def _update_rot_axis(self):
+        delta_pix = round(
+            self.current_rot_axis.get() - self.proposed_rot_axis.get()
+        )
+        if abs(delta_pix) < self.acceptance_criterium.get():
+            self.current_rot_axis.put(self.proposed_rotation_axis)
+            self._update_rois(delta_pix)
 
 
 rot_aligner = RotationAxisAligner("XF:17IDB-ES:AMX", name="rot_aligner")
