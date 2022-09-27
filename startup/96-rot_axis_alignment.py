@@ -131,7 +131,7 @@ class RotAlignLowMag(StandardProsilica):
     cv1 = Cpt(CVPlugin, "CV1:")
     cam_mode = Cpt(Signal, value=None, kind="config")
     pix_per_um = Cpt(Signal, value=1, kind="config")
-    roi_offset = Cpt(Signal, value=266, kind="config")
+    roi_offset = Cpt(Signal, value=256, kind="config")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -301,7 +301,8 @@ class RotationAxisAligner(Device):
     def _update_rois(self, delta_pix, **kwargs):
         self.cam_hi.roi1.min_xyz.min_y.put(self.current_rot_axis.get() - 256)
         self.cam_lo.roi1.min_xyz.min_y.put(
-            delta_pix * (self.cam_lo.pix_per_um / self.cam_hi.pix_per_um)
+            delta_pix
+            * (self.cam_lo.pix_per_um.get() / self.cam_hi.pix_per_um.get())
             + self.cam_lo.roi1.min_xyz.min_y.get()
         )
 
