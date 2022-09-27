@@ -33,9 +33,10 @@ class StandardProsilica(SingleTrigger, ProsilicaDetector):
 
 #cam_fs1 = StandardProsilica('XF:17IDA-BI:AMX{FS:1-Cam:1}', name='cam_fs1')
 # cam_mono = StandardProsilica('XF:17IDA-BI:AMX{Mono:DCM-Cam:1}', name='cam_mono')
-cam_fs2 = StandardProsilica('XF:17IDA-BI:AMX{FS:2-Cam:1}', name='cam_fs2')
-cam_fs3 = StandardProsilica('XF:17IDA-BI:AMX{FS:3-Cam:1}', name='cam_fs3')
-cam_fs4 = StandardProsilica('XF:17IDB-BI:AMX{FS:4-Cam:1}', name='cam_fs4')
+# comment out more unused cameras
+# cam_fs2 = StandardProsilica('XF:17IDA-BI:AMX{FS:2-Cam:1}', name='cam_fs2')
+# cam_fs3 = StandardProsilica('XF:17IDA-BI:AMX{FS:3-Cam:1}', name='cam_fs3')
+# cam_fs4 = StandardProsilica('XF:17IDB-BI:AMX{FS:4-Cam:1}', name='cam_fs4')
 cam_6 = StandardProsilica('XF:17IDB-ES:AMX{Cam:6}', name='cam_6')
 cam_7 = StandardProsilica('XF:17IDB-ES:AMX{Cam:7}', name='cam_7')
 xeye = StandardProsilica('XF:17IDB-ES:AMX{Cam:9}', name='xeye')
