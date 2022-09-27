@@ -42,7 +42,7 @@ cam_7 = StandardProsilica('XF:17IDB-ES:AMX{Cam:7}', name='cam_7')
 xeye = StandardProsilica('XF:17IDB-ES:AMX{Cam:9}', name='xeye')
 
 # all_standard_pros = [cam_fs1, cam_mono, cam_fs2, cam_fs3, cam_fs4, cam_6, cam_7, xeye]
-all_standard_pros = [cam_fs2, cam_fs3, cam_fs4, cam_6, cam_7, xeye]
+all_standard_pros = [cam_6, cam_7, xeye]
 for camera in all_standard_pros:
     camera.read_attrs = ['stats1', 'stats2', 'stats3', 'stats4', 'stats5']
     camera.stats1.read_attrs = ['total', 'centroid']
