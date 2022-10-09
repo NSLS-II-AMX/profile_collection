@@ -131,7 +131,7 @@ class RotAlignLowMag(StandardProsilica):
     cv1 = Cpt(CVPlugin, "CV1:")
     cam_mode = Cpt(Signal, value=None, kind="config")
     pix_per_um = Cpt(Signal, value=1, kind="config")
-    roi_offset = Cpt(Signal, value=256, kind="config")
+    roi_offset = Cpt(Signal, value=266, kind="config")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -254,6 +254,17 @@ class RotAlignHighMag(StandardProsilica):
                     ("roi4.size.y", 1246),
                 ]
             )
+        elif self.cam_mode.get() == "beam_align":
+            self.stage_sigs.update(
+                [
+                    ("cam.acquire_time", 0.15),
+                    ("proc1.nd_array_port", "CC1"),
+                    ("roi4.min_xyz.min_x", self.roi1.min_xyz.min_x.get()),
+                    ("roi4.min_xyz.min_y", self.roi1.min_xyz.min_y.get()),
+                    ("roi4.size.x", 570),
+                    ("roi4.size.y", 570),
+                ]
+            )
 
     def _sync_rois(self, *args, **kwargs):
         self.roi2.min_xyz.min_y.put(
@@ -290,8 +301,7 @@ class RotationAxisAligner(Device):
     def _update_rois(self, delta_pix, **kwargs):
         self.cam_hi.roi1.min_xyz.min_y.put(self.current_rot_axis.get() - 256)
         self.cam_lo.roi1.min_xyz.min_y.put(
-            delta_pix
-            * (self.cam_lo.pix_per_um.get() / self.cam_hi.pix_per_um.get())
+            delta_pix * (self.cam_lo.pix_per_um / self.cam_hi.pix_per_um)
             + self.cam_lo.roi1.min_xyz.min_y.get()
         )
 
@@ -305,3 +315,4 @@ class RotationAxisAligner(Device):
 
 
 rot_aligner = RotationAxisAligner("XF:17IDB-ES:AMX", name="rot_aligner")
+cam_hi_ba = RotAlignHighMag("XF:17IDB-ES:AMX{Cam:7}", name="cam_hi")
