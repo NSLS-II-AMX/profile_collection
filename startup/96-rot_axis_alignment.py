@@ -137,7 +137,7 @@ class RotAlignLowMag(StandardProsilica):
         super().__init__(*args, **kwargs)
         self.read_attrs = ["cv1", "stats1", "stats2"]
         self.cv1.read_attrs = ["outputs"]
-        self.cv1.outputs.read_attrs = ["output1"]
+        self.cv1.outputs.read_attrs = ["output1", "output2"]
         self.stats1.read_attrs = ["total"]
         self.stats2.read_attrs = ["total"]
         self.cam_mode.subscribe(self._update_stage_sigs, event_type="value")
@@ -149,8 +149,8 @@ class RotAlignLowMag(StandardProsilica):
             [
                 ("cam.acquire", 0),
                 ("cam.image_mode", 1),
-                ("acquire_time", 0.0025),
-                ("acquire_period", 1),
+                ("cam.acquire_time", 0.0025),
+                ("cam.acquire_period", 1),
             ]
         )
         if self.cam_mode.get() == "centroid":

@@ -38,12 +38,66 @@ def measure_tip_dist(detector, *, coarse_align_pix=215):
     return delta_x_pix / detector.pix_per_um.get()
 
 
+# calculate centroid position
+# calculate centroid move
+# move
+# focus scan hi mag
+
+
+def measure_opening_dist(detector, roi):
+    yield from bps.abs_set(detector.cam_mode, "centroid")
+    scan_uid = yield from bp.count([detector], 1)
+    centroid_x = db[scan_uid].table()[f"{detector.cv1.outputs.output1.name}"][
+        1
+    ]
+    centroid_y = db[scan_uid].table()[f"{detector.cv1.outputs.output2.name}"][
+        1
+    ]
+    # change origin to center of roi
+    # TODO define roi plugins with center
+    delta_x_pix = centroid_x - (
+        roi.min_xyz.min_x.get() + (roi.size.x.get() / 2)
+    )
+    # unfortunately openCV centroids place origin at bottom left, must correct
+    # TODO common coordinate system
+    delta_y_pix = (roi.max_xy.y.get() - centroid_y) - (
+        roi.min_xyz.min_y.get() + (roi.size.y.get() / 2)
+    )
+    delta_x, delta_y = (
+        delta_x_pix / detector.pix_per_um.get(),
+        delta_y_pix / detector.pix_per_um.get(),
+    )
+    return delta_x, delta_y
+
+
+def move_centroid():
+    delta_x, delta_y = yield from measure_opening_dist(
+        rot_aligner.cam_lo, rot_aligner.cam_lo.roi1
+    )
+    yield from bps.mvr(gonio.gx, delta_x)
+    yield from bps.mvr(rot_aligner.gc_positioner.cam_y, -delta_y)
+
+
+def pin_focus_scan(detector):
+    yield from bps.abs_set(detector.cam_mode, "edge_detection")
+    scan_uid = yield from bp.rel_scan(
+        [detector], rot_aligner.gc_positioner.cam_z, -200, 200, 40
+    )
+    left_pixels = db[scan_uid].table()[f"{detector.cv1.outputs.output7.name}"]
+    best_cam_z = db[scan_uid].table()[
+        f"{rot_aligner.gc_positioner.cam_z.name}"
+    ][left_pixels.argmin()]
+    return best_cam_z
+
+
+def move_and_focus():
+    yield from move_centroid()
+    yield from move_centroid()
+    best_z = yield from pin_focus_scan(rot_aligner.cam_hi)
+    yield from bps.mv(rot_aligner.gc_positioner.cam_z, best_z)
+
+
 def rot_pin_align(rot_aligner, rot_motor, long_motor):
-
-    LAST_X = 5100
-
-    # get x in range
-    yield from bps.mv(long_motor, LAST_X)
 
     # find optimal omega for sheath opening
     omega_scan_uid = yield from bp.scan(
@@ -54,6 +108,9 @@ def rot_pin_align(rot_aligner, rot_motor, long_motor):
         omega_scan_df[f"{rot_aligner.cam_lo.stats1.total.name}"].idxmax()
     ]
     yield from bps.mv(rot_motor, omega_start)
+
+    # prepare pin position for alignment
+    yield from move_and_focus()
 
     # move pin tip past ROI
     delta_long = yield from measure_tip_dist(rot_aligner.cam_hi)
