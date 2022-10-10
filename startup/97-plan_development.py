@@ -205,4 +205,4 @@ def rot_pin_align(
     yield from bps.abs_set(rot_aligner.proposed_rot_axis, rot_axis_pix.item(0))
 
     # bump pin tip to line up with cross-hair for human result inspector
-    yield from bps.mvr(gonio.gx, -30)
+    yield from bps.mvr(gonio.gx, -28)
