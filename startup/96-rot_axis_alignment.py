@@ -173,6 +173,10 @@ class RotAlignLowMag(StandardProsilica):
             self.roi1.min_xyz.min_y.get() - self.roi_offset.get()
         )
 
+    def stage(self, *args, **kwargs):
+        self._update_stage_sigs(*args, **kwargs)
+        super().stage(*args, **kwargs)
+
 
 class RotAlignHighMag(StandardProsilica):
     cc1 = Cpt(ColorConvPlugin, "CC1:")
@@ -207,7 +211,6 @@ class RotAlignHighMag(StandardProsilica):
         self.stats4.read_attrs = ["centroid", "max_xy"]
         self.stats4.centroid.read_attrs = ["x", "y"]
         self.stats4.max_xy.read_attrs = ["x", "y"]
-        self.cam_mode.subscribe(self._update_stage_sigs, event_type="value")
         self._update_stage_sigs()
         self.roi1.min_xyz.min_y.subscribe(self._sync_rois, event_type="value")
 
@@ -248,7 +251,10 @@ class RotAlignHighMag(StandardProsilica):
                     ("proc1.filter_type", "CopyToFilter"),
                     ("proc1.o_scale", -1),
                     ("proc1.o_offset", 140),
-                    ("roi4.min_xyz.min_x", 1117),
+                    (
+                        "roi4.min_xyz.min_x",
+                        self.roi1.min_xyz.min_x.get() + 302,
+                    ),
                     ("roi4.min_xyz.min_y", 0),
                     ("roi4.size.x", 25),
                     ("roi4.size.y", 1246),
@@ -270,6 +276,10 @@ class RotAlignHighMag(StandardProsilica):
         self.roi2.min_xyz.min_y.put(
             self.roi1.min_xyz.min_y.get() - self.roi_offset.get()
         )
+
+    def stage(self, *args, **kwargs):
+        self._update_stage_sigs(*args, **kwargs)
+        super().stage(*args, **kwargs)
 
 
 class RotationAxisAligner(Device):
