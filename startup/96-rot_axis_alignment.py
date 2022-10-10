@@ -160,7 +160,7 @@ class RotAlignLowMag(StandardProsilica):
                     ("cv1.func_sets.func_set2", "Centroid Identification"),
                     ("cv1.inputs.input1", 1),
                     ("cv1.inputs.input2", 5),
-                    ("cv1.inputs.input3", 50),
+                    ("cv1.inputs.input3", 30),
                     ("cv1.inputs.input4", 3000000),
                     ("cv1.inputs.input5", 5000),
                 ]
@@ -236,7 +236,7 @@ class RotAlignHighMag(StandardProsilica):
                     ("cv1.inputs.input4", 5),
                     ("roi4.min_xyz.min_x", 672),
                     ("roi4.min_xyz.min_y", 0),
-                    ("roi4.size.x", 1100),
+                    ("roi4.size.x", 1264),
                     ("roi4.size.y", 1246),
                 ]
             )
