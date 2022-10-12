@@ -28,6 +28,8 @@ from ophyd.areadetector.filestore_mixins import (
 from ophyd import Component as Cpt
 from ophyd.status import SubscriptionStatus
 
+import time
+
 
 class SpecialProsilica(ProsilicaDetector):
     cc1 = Cpt(ColorConvPlugin, "CC1:")
@@ -67,7 +69,7 @@ class KBTweakerAxis(Device):
         if self._status is not None and not self._status.done:
             raise RuntimeError("Another set is in progress")
 
-        if self.voltage_limit < target or target < -self.voltage_limit:
+        if abs(target) > self.voltage_limit:
             raise ValueError(
                 f"You passed {target!r} with out of ±{self.voltage_limit} gamut."
             )
@@ -76,8 +78,13 @@ class KBTweakerAxis(Device):
         step_size = float(self.step_size.get())
         # get the current voltage
         current = self.voltage.get()
-        # compute (float) number of "steps" to take
-        num_steps = (target - current) / step_size
+        # compute number of "steps" to take
+        num_steps = int(np.round(abs(target - current) / step_size))
+        # step direction
+        try:
+            step_direction = (target - current) / abs(target - current)
+        except ZeroDivisionError:
+            step_direction = 0
 
         def deadband(*, old_value, value, **kwargs):
             # if with in half a step size, declare victory
@@ -87,7 +94,9 @@ class KBTweakerAxis(Device):
 
         self._status = status = SubscriptionStatus(self.voltage, deadband)
         if not status.done:
-            self.actuate.put(num_steps)
+            for k in range(0, num_steps):
+                self.actuate.put(step_direction)
+                time.sleep(1)
         return status
 
 
