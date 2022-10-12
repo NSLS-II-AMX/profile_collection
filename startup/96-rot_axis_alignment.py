@@ -123,10 +123,6 @@ class CVPlugin(PluginBase):
     cam_depth = ADCpt(EpicsSignal, "CompVisionCamDepth", kind="config")
 
 
-class SingleTriggerProsilica(SingleTrigger, ProsilicaDetector):
-    pass
-
-
 class RotAlignLowMag(StandardProsilica):
     cv1 = Cpt(CVPlugin, "CV1:")
     cam_mode = Cpt(Signal, value=None, kind="config")
