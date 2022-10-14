@@ -477,36 +477,26 @@ def set_energy(energy,use_diode=False):
                              7.890, 7.960, 6.700, 6.940, 6.460, 6.510, 6.658,
                              6.758, 6.890, 7.057, 7.255, 6.500, 6.574, 7.110, 6.500])*1000),
 
-        #vdcm.g: (energies, [16.030, 15.485, 15.290, 15.200, 15.199, 15.170, 15.090, 15.050,
-        #                    15.010, 15.010, 15.010, 14.990, 14.950, 14.930,
-        #                    14.910, 14.910, 14.890, 14.870, 14.840, 14.840,
-        #                    14.810, 14.810, 14.810, 14.809]),
+        vdcm.g: (energies, [15.990, 15.445, 15.250, 15.160, 15.160, 15.130, 15.050, 15.010,
+                            14.970, 14.970, 14.970, 14.950, 14.910, 14.890,
+                            14.870, 14.870, 14.850, 14.830, 14.800, 14.800,
+                            14.770, 14.770, 14.770, 14.770]),
+
         
-        #DCM Gap 100 um lower, 7Oct2021
-        #vdcm.g: (energies, [15.930, 15.385, 15.190, 15.100, 15.099, 15.070, 14.990, 14.950,
-        #                    14.910, 14.910, 14.910, 14.890, 14.850, 14.830,
-        #                    14.810, 14.810, 14.790, 14.770, 14.740, 14.740,
-        #                    14.710, 14.710, 14.710, 14.709]),
-        
-        #vdcm.g: (energies, [16.030, 15.485, 15.290, 15.200, 15.199, 15.799, 15.799, 15.799,
-        #                    15.799, 15.799, 15.799, 14.799, 14.799, 14.799,
-        #                    14.799, 14.799, 14.799, 14.799, 14.799, 14.799,
-        #                    14.799, 14.799, 14.799, 14.799]),
-        
-        vdcm.r:  (energies, [5.918, 5.918, 5.918, 5.918, 5.918, 5.918, 5.918, 5.918, 5.918,
-                            5.918, 5.918, 5.918, 5.918, 5.918, 5.918, 5.918, 5.918, 5.918,
-                            5.918, 5.918, 5.918, 5.918, 5.918, 5.918]),
+        vdcm.r:  (energies, [5.870, 5.870, 5.870, 5.870, 5.870, 5.870, 5.870, 5.870, 5.870,
+                            5.870, 5.870, 5.870, 5.870, 5.870, 5.870, 5.870, 5.870, 5.870,
+                            5.870, 5.870, 5.870, 5.870, 5.870, 5.870]),
     }
 
     # Last Good Position
     LGP = {
-        vdcm.p:  6.496,
+        vdcm.p:  6.506,
         kbm.vx:  0,
-        kbm.vy:  1.894,
-        kbm.vp: -3.658,
-        kbm.hx: -1.844,
-        kbm.hy:  0.145,
-        kbm.hp:  3.443
+        kbm.vy:  1.870,
+        kbm.vp: -3.669,
+        kbm.hx: -1.575,
+        kbm.hy:  0.152,
+        kbm.hp:  3.486
     }
 
     # Lookup Table
@@ -520,7 +510,7 @@ def set_energy(energy,use_diode=False):
     yield from bps.mv(
         *lut(ivu_gap),   # Set IVU Gap interpolated position
         vdcm.e, energy,  # Set Bragg Energy pseudomotor
-        #*lut(vdcm.g),    # Set DCM Gap interpolated position
+        *lut(vdcm.g),    # Set DCM Gap interpolated position
         *lut(vdcm.r),     # Set DCM Roll interpolated position
         *lgp(vdcm.p),     # Set Pitch to last known good position
 
@@ -597,7 +587,7 @@ def vdcm_rock_test(vdcm_p_range=0.02, vdcm_p_points=51, logging = True):
     """
 
     yield from bps.mv(
-        vdcm.p, 6.6462     # Set Pitch interpolated position
+        vdcm.p, 6.5057     # Set Pitch interpolated position
     )
     
     ax1 = plt.subplot(111)
