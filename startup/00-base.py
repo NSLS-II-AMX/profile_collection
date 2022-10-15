@@ -3,6 +3,7 @@ print(f"Loading {__file__}")
 import os
 import uuid
 from pathlib import Path
+import time
 
 import appdirs
 import matplotlib
@@ -49,18 +50,19 @@ try:
         self._ensure_connected(self._read_pv, self._write_pv, timeout=timeout)
         # print(f'{print_now()}: waited for {self.name} to connect for {time.time() - start:.4f} s.')
 
-    EpicsSignalBase.wait_for_connection = wait_for_connection_base
+#    EpicsSignalBase.wait_for_connection = wait_for_connection_base
     EpicsSignal.wait_for_connection = wait_for_connection
     ###############################################################################
 
     from ophyd.signal import EpicsSignalBase
 
     # EpicsSignalBase.set_default_timeout(timeout=10, connection_timeout=10)  # old style
-    EpicsSignalBase.set_defaults(timeout=10, connection_timeout=10)  # new style
+#    EpicsSignalBase.set_defaults(timeout=10, connection_timeout=10)  # new style
 
 except ImportError:
     pass
 
+'''
 nslsii.configure_base(get_ipython().user_ns, 'amx', bec=True, pbar=False,
                       publish_documents_with_kafka=True)
 
@@ -79,3 +81,4 @@ except ImportError:
 
 #Optional: set any metadata that rarely changes.
 RE.md['beamline_id'] = 'AMX'
+'''

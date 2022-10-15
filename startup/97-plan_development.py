@@ -100,7 +100,6 @@ def align_centroid(detector, roi, x_axis, y_axis, rot_axis, *, n_steps=3):
     yield from move_centroid_inner(n_steps)
     yield from bps.mvr(rot_axis, 90)
     yield from move_centroid_inner(n_steps)
-    yield from bps.mvr(rot_axis, -90)
 
 
 def pin_focus_scan(detector, axis):
@@ -137,6 +136,18 @@ def rot_pin_align(
         rot_aligner.gc_positioner.cam_y,
         gonio.o,
     )
+    # the pin may still be off axis, 'bump' it a little to bring to center
+    yield from bps.abs_set(rot_aligner.cam_lo.cam_mode, "edge_detection")
+    scan_uid = yield from bp.count([rot_aligner.cam_lo], 1)
+    ver_center = db[scan_uid].table()[
+        f"{rot_aligner.cam_lo.cv1.outputs.output3.name}"
+    ][1]
+    yield from bps.mvr(
+        rot_aligner.gc_positioner.cam_y,
+        (ver_center / rot_aligner.cam_lo.pix_per_um.get()) - 256,
+    )
+
+    # focus scan
     best_z = yield from pin_focus_scan(
         rot_aligner.cam_hi, rot_aligner.gc_positioner.cam_z
     )
@@ -205,4 +216,4 @@ def rot_pin_align(
     yield from bps.abs_set(rot_aligner.proposed_rot_axis, rot_axis_pix.item(0))
 
     # bump pin tip to line up with cross-hair for human result inspector
-    yield from bps.mvr(gonio.gx, -28)
+    yield from bps.mvr(gonio.gx, -27)

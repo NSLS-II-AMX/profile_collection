@@ -133,7 +133,7 @@ class RotAlignLowMag(StandardProsilica):
         super().__init__(*args, **kwargs)
         self.read_attrs = ["cv1", "stats1", "stats2"]
         self.cv1.read_attrs = ["outputs"]
-        self.cv1.outputs.read_attrs = ["output1", "output2"]
+        self.cv1.outputs.read_attrs = ["output1", "output2", "output3"]
         self.stats1.read_attrs = ["total"]
         self.stats2.read_attrs = ["total"]
         self.cam_mode.subscribe(self._update_stage_sigs, event_type="value")
@@ -159,6 +159,25 @@ class RotAlignLowMag(StandardProsilica):
                     ("cv1.inputs.input3", 30),
                     ("cv1.inputs.input4", 3000000),
                     ("cv1.inputs.input5", 5000),
+                ]
+            )
+        elif self.cam_mode.get() == "edge_detection":
+            self.stage_sigs.update(
+                [
+                    ("cv1.enable", 1),
+                    ("cv1.nd_array_port", "ROI4"),
+                    ("cv1.func_sets.func_set1", "Canny Edge Detection"),
+                    ("cv1.inputs.input1", 20),
+                    ("cv1.inputs.input2", 8),
+                    ("cv1.inputs.input3", 9),
+                    ("cv1.inputs.input4", 5),
+                    ("roi4.min_xyz.min_y", self.roi1.min_xyz.min_y.get()),
+                    (
+                        "roi4.min_xyz.min_x",
+                        self.roi1.min_xyz.min_x.get() + 245,
+                    ),
+                    ("roi4.size.x", 240),
+                    ("roi4.size.y", self.roi1.size.y.get()),
                 ]
             )
         elif self.cam_mode.get() == "find_sheath":
