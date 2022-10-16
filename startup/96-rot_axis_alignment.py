@@ -220,9 +220,10 @@ class RotAlignHighMag(StandardProsilica):
             ]
         ]
         self.cv1.outputs.read_attrs = [
+            "output3",
             "output7",
             "output8",
-        ]  # 7 left, 8 right pixel
+        ]  # 3 vert center, 7 left pixel, 8 right pixel
         self.stats4.read_attrs = ["centroid", "max_xy"]
         self.stats4.centroid.read_attrs = ["x", "y"]
         self.stats4.max_xy.read_attrs = ["x", "y"]
@@ -278,7 +279,7 @@ class RotAlignHighMag(StandardProsilica):
         elif self.cam_mode.get() == "beam_align":
             self.stage_sigs.update(
                 [
-                    ("cam.acquire_time", 0.15),
+                    ("cam.acquire_time", 0.2),
                     ("proc1.nd_array_port", "CC1"),
                     ("roi4.min_xyz.min_x", self.roi1.min_xyz.min_x.get()),
                     ("roi4.min_xyz.min_y", self.roi1.min_xyz.min_y.get()),

@@ -108,7 +108,7 @@ def pin_focus_scan(detector, axis):
     that pin tip is coming from the right, thus argmin used for OpenCV
     convention. Pin tip coming from left would require argmax."""
     yield from bps.abs_set(detector.cam_mode, "edge_detection")
-    scan_uid = yield from bp.rel_scan([detector], axis, -400, 400, 80)
+    scan_uid = yield from bp.rel_scan([detector], axis, -400, 400, 60)
     left_pixels = db[scan_uid].table()[f"{detector.cv1.outputs.output7.name}"]
     best_cam_z = db[scan_uid].table()[f"{axis.name}"][left_pixels.argmin()]
     return best_cam_z
@@ -216,4 +216,4 @@ def rot_pin_align(
     yield from bps.abs_set(rot_aligner.proposed_rot_axis, rot_axis_pix.item(0))
 
     # bump pin tip to line up with cross-hair for human result inspector
-    yield from bps.mvr(gonio.gx, -27)
+    yield from bps.mvr(long_motor, -27)
