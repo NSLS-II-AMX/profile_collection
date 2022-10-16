@@ -280,6 +280,7 @@ class RotAlignHighMag(StandardProsilica):
             self.stage_sigs.update(
                 [
                     ("cam.acquire_time", 0.2),
+                    ("stats4.centroid_threshold", 10),
                     ("proc1.nd_array_port", "CC1"),
                     ("roi4.min_xyz.min_x", self.roi1.min_xyz.min_x.get()),
                     ("roi4.min_xyz.min_y", self.roi1.min_xyz.min_y.get()),
