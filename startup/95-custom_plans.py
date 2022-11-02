@@ -510,7 +510,7 @@ def set_energy(energy,use_diode=False):
     yield from bps.mv(
         *lut(ivu_gap),   # Set IVU Gap interpolated position
         vdcm.e, energy,  # Set Bragg Energy pseudomotor
-        *lut(vdcm.g),    # Set DCM Gap interpolated position
+     #   *lut(vdcm.g),    # Set DCM Gap interpolated position
         *lut(vdcm.r),     # Set DCM Roll interpolated position
         *lgp(vdcm.p),     # Set Pitch to last known good position
 
