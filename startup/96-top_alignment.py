@@ -40,7 +40,7 @@ class TopAlignCam(StandardProsilica):
                 ("cv1.inputs.input2", 3),
                 ("cv1.inputs.input3", 1),
                 ("cv1.inputs.input4", 3),
-                ("cv1.inputs.input5", 7),
+                ("cv1.inputs.input5", 6),
                 ("cv1.inputs.input6", 1),
                 ("trans1.nd_array_port", "PROC1"),
                 ("roi1.nd_array_port", "TRANS1"),

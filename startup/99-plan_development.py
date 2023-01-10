@@ -51,7 +51,7 @@ def top_plan():
 
     # coarse rotation axis align
     delta_y, delta_z, _ = yield from inner_rot_scan(
-        [topcam], gonio.o, 0, 180, 3
+        [topcam], gonio.o, 0, 110, 3
     )
     yield from bps.mvr(gonio.py, delta_y)
     yield from bps.mvr(gonio.pz, -delta_z)
