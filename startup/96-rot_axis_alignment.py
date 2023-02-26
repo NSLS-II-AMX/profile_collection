@@ -219,7 +219,9 @@ class RotAlignHighMag(StandardProsilica):
                 self.trans1,
             ]
         ]
+
         self.cv1.outputs.read_attrs = [
+            "output2",
             "output3",
             "output7",
             "output8",
@@ -229,6 +231,10 @@ class RotAlignHighMag(StandardProsilica):
         self.stats4.max_xy.read_attrs = ["x", "y"]
         self._update_stage_sigs()
         self.roi1.min_xyz.min_y.subscribe(self._sync_rois, event_type="value")
+
+    @property
+    def trigger_signals(self):
+        return [self.cam_mode]
 
     def _update_stage_sigs(self, *args, **kwargs):
         self.stage_sigs.clear()
@@ -246,6 +252,8 @@ class RotAlignHighMag(StandardProsilica):
                     ("cv1.enable", 1),
                     ("cv1.nd_array_port", "ROI4"),
                     ("cv1.func_sets.func_set1", "Canny Edge Detection"),
+                    ("cv1.func_sets.func_set2", "None"),
+                    ("cv1.func_sets.func_set3", "None"),
                     ("cv1.inputs.input1", 35),
                     ("cv1.inputs.input2", 5),
                     ("cv1.inputs.input3", 13),
@@ -262,6 +270,8 @@ class RotAlignHighMag(StandardProsilica):
                 [
                     ("cam.acquire_time", 0.15),
                     ("cam.acquire_period", 0.15),
+                    ("cv1.enable", 0),
+                    ("cv1.nd_array_port", "CAM"),
                     ("proc1.nd_array_port", "CC1"),
                     ("proc1.enable_filter", 1),
                     ("proc1.filter_type", "CopyToFilter"),
@@ -276,6 +286,61 @@ class RotAlignHighMag(StandardProsilica):
                     ("roi4.size.y", 1246),
                 ]
             )
+
+            self.stats4.stage_sigs.clear()
+            self.stats4.stage_sigs.update(
+                [
+                    ("enable", 1),
+                    ("blocking_callbacks", "Yes"),
+                ]
+            )
+
+        elif self.cam_mode.get() == "rot_align_contour":
+            self.stage_sigs.update(
+                [
+                    ("cam.acquire_time", 0.15),
+                    ("cam.acquire_period", 0.15),
+                    (
+                        "cam.num_images",
+                        2,
+                    ),  # this reduces missed triggers, why?
+                    ("cc1.enable", 1),
+                    ("cc1.nd_array_port", "CAM"),
+                    ("proc1.nd_array_port", "CC1"),
+                    ("proc1.enable", 0),
+                    ("cv1.enable", 1),
+                    ("cv1.nd_array_port", "ROI2"),
+                    ("cv1.func_sets.func_set1", "None"),
+                    ("cv1.func_sets.func_set2", "None"),
+                    ("cv1.func_sets.func_set3", "User Function"),
+                    ("cv1.inputs.input1", 33),
+                    ("cv1.inputs.input2", 8),
+                    ("cv1.inputs.input3", 7),
+                    ("cv1.inputs.input4", 5),
+                ]
+            )
+
+            # disable stats plugins, reduce ioc load, avoid missing triggers
+            stats_plugins = [
+                self.stats1,
+                self.stats2,
+                self.stats3,
+                self.stats4,
+                self.stats5,
+            ]
+
+            [_plugin.stage_sigs.clear() for _plugin in stats_plugins]
+
+            [
+                _plugin.stage_sigs.update(
+                    [
+                        ("enable", 0),
+                        ("blocking_callbacks", "No"),
+                    ]
+                )
+                for _plugin in stats_plugins
+            ]
+
         elif self.cam_mode.get() == "beam_align":
             self.stage_sigs.update(
                 [
@@ -288,6 +353,22 @@ class RotAlignHighMag(StandardProsilica):
                     ("roi4.size.y", 570),
                 ]
             )
+
+    """
+    def trigger(self):
+        import time as ttime
+        "Trigger one acquisition."
+        if self._staged != Staged.yes:
+            raise RuntimeError(
+                "This detector is not ready to trigger."
+                "Call the stage() method before triggering."
+            )
+
+        self._status = self._status_type(self)
+        self._acquisition_signal.put(1, use_complete=True)
+        self.generate_datum(self._image_name, ttime.time(), {})
+        return self._status
+    """
 
     def _sync_rois(self, *args, **kwargs):
         self.roi2.min_xyz.min_y.put(
