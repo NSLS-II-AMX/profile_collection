@@ -8,8 +8,29 @@ are updated so that the center of the ROIs coincide with the rotation axis.
 No assumptions or updates are made to horizontal positions."""
 
 
+from functools import partial
+
+
+def ten_per_step(detectors, step, pos_cache):
+
+    motor = list(step.keys())[0]  # assume 1d scan
+    yield from bps.mv(motor, step[motor])
+    yield from bps.repeat(
+        partial(bps.trigger_and_read, (list(detectors) + list(step.keys()))),
+        num=10,
+    )
+
+
 def measure_rot_axis(
-    detector, rot_motor, start, *, sweep_width=270, n_steps=4
+    detector,
+    signal,
+    mode,
+    rot_motor,
+    start,
+    *,
+    sweep_width=270,
+    n_steps=4,
+    per_step=None,
 ):
     """make n_steps number of measurements and perform linear regression to
     calculate the vertical position of the rotation axis in camera coordinates
@@ -21,15 +42,20 @@ def measure_rot_axis(
     delta_y_pix: vertical displacement of object from y0 at omega=0
     delta_z_pix: vertical displacement of object from y0 at omega=90
     """
-    detector.cam_mode.put("rot_align")
+    detector.cam_mode.put(mode)
     scan_uid = yield from bp.scan(
-        [detector], rot_motor, start, start + sweep_width, n_steps
+        [detector],
+        rot_motor,
+        start,
+        start + sweep_width,
+        n_steps,
+        per_step=per_step,
     )
-    b = db[scan_uid].table()[f"{detector.stats4.max_xy.y.name}"]
+    b = db[scan_uid].table()[f"{signal.name}"]
     A = np.matrix(
         [
             [np.cos(np.deg2rad(omega)), np.sin(np.deg2rad(omega)), 1]
-            for omega in np.linspace(*(start, start + sweep_width, n_steps))
+            for omega in db[scan_uid].table()[f"{rot_motor.name}"]
         ]
     )
     p = (
@@ -42,6 +68,9 @@ def measure_rot_axis(
         delta_y_pix / detector.pix_per_um.get(),
         delta_z_pix / detector.pix_per_um.get(),
     )
+    # print(delta_y)
+    # print(delta_z)
+    print(rot_axis_pix)
     return delta_y, delta_z, rot_axis_pix
 
 
@@ -159,7 +188,11 @@ def rot_pin_align(
 
     # first coarse alignment
     delta_y, delta_z, rot_axis_pix = yield from measure_rot_axis(
-        rot_aligner.cam_hi, rot_motor, omega_start
+        rot_aligner.cam_hi,
+        rot_aligner.cam_hi.stats4.max_xy.y,
+        "rot_align",
+        rot_motor,
+        omega_start,
     )
     # move to approximate rotation axis
     yield from bps.mvr(rot_aligner.gc_positioner.real_y, -delta_y)
@@ -171,7 +204,11 @@ def rot_pin_align(
 
     # second alignment
     delta_y, delta_z, rot_axis_pix = yield from measure_rot_axis(
-        rot_aligner.cam_hi, rot_motor, omega_start
+        rot_aligner.cam_hi,
+        rot_aligner.cam_hi.stats4.max_xy.y,
+        "rot_align",
+        rot_motor,
+        omega_start,
     )
     yield from bps.mvr(rot_aligner.gc_positioner.real_y, -delta_y)
     yield from bps.sleep(0.1)
@@ -179,7 +216,12 @@ def rot_pin_align(
 
     # third alignment, do not attempt to move, just measure
     _, _, rot_axis_pix = yield from measure_rot_axis(
-        rot_aligner.cam_hi, rot_motor, omega_start
+        rot_aligner.cam_hi,
+        rot_aligner.cam_hi.stats4.max_xy.y,
+        "rot_align_contour",
+        rot_motor,
+        omega_start,
+        per_step=ten_per_step,
     )
 
     def tune_pin_inner(cam_axis):
@@ -188,12 +230,14 @@ def rot_pin_align(
         use linear regression to empirically measure optimal value of
         pseudopositioner axis cam_y
         """
-        yield from bps.abs_set(rot_aligner.cam_hi.cam_mode, "rot_align")
+        yield from bps.abs_set(
+            rot_aligner.cam_hi.cam_mode, "rot_align_contour"
+        )
         scan_uid = yield from bp.rel_scan(
-            [rot_aligner.cam_hi], cam_axis, -5, 5, 20
+            [rot_aligner.cam_hi], cam_axis, -5, 5, 5, per_step=ten_per_step
         )
         scan_df = db[scan_uid].table()
-        b = scan_df[f"{rot_aligner.cam_hi.stats4.max_xy.y.name}"]
+        b = scan_df[f"{rot_aligner.cam_hi.cv1.outputs.output2.name}"]
         A = np.matrix([[pos, 1] for pos in scan_df[f"{cam_axis.name}"]])
         p = (
             np.linalg.inv(A.transpose() * A)
@@ -213,7 +257,40 @@ def rot_pin_align(
     yield from bps.mv(rot_aligner.gc_positioner.cam_y, best_cam_y)
 
     # update rotation axis signal, if move is reasonable rois will auto-update
-    yield from bps.abs_set(rot_aligner.proposed_rot_axis, rot_axis_pix.item(0))
+    # yield from bps.abs_set(rot_aligner.proposed_rot_axis, rot_axis_pix.item(0))
 
     # bump pin tip to line up with cross-hair for human result inspector
     yield from bps.mvr(long_motor, -27)
+
+
+def test_plan2():
+    yield from bps.abs_set(rot_aligner.cam_hi.cam_mode, "rot_align")
+    yield from bp.rel_list_scan(
+        [rot_aligner.cam_hi],
+        gonio.o,
+        [0, 90, 180, 270],
+        per_step=ten_per_step,
+    )
+
+
+def compare_plans():
+
+    for i in range(0, 10):
+        yield from measure_rot_axis(
+            rot_aligner.cam_hi,
+            rot_aligner.cam_hi.stats4.max_xy.y,
+            "rot_align",
+            gonio.o,
+            94,
+            per_step=ten_per_step,
+        )
+
+    for i in range(0, 10):
+        yield from measure_rot_axis(
+            rot_aligner.cam_hi,
+            rot_aligner.cam_hi.cv1.outputs.output2,
+            "rot_align_contour",
+            gonio.o,
+            94,
+            per_step=ten_per_step,
+        )
