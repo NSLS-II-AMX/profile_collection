@@ -304,6 +304,7 @@ class RotAlignHighMag(StandardProsilica):
                         "cam.num_images",
                         2,
                     ),  # this reduces missed triggers, why?
+                    ("cam.trigger_mode", 5),
                     ("cc1.enable", 1),
                     ("cc1.nd_array_port", "CAM"),
                     ("proc1.nd_array_port", "CC1"),
@@ -353,22 +354,6 @@ class RotAlignHighMag(StandardProsilica):
                     ("roi4.size.y", 570),
                 ]
             )
-
-    """
-    def trigger(self):
-        import time as ttime
-        "Trigger one acquisition."
-        if self._staged != Staged.yes:
-            raise RuntimeError(
-                "This detector is not ready to trigger."
-                "Call the stage() method before triggering."
-            )
-
-        self._status = self._status_type(self)
-        self._acquisition_signal.put(1, use_complete=True)
-        self.generate_datum(self._image_name, ttime.time(), {})
-        return self._status
-    """
 
     def _sync_rois(self, *args, **kwargs):
         self.roi2.min_xyz.min_y.put(
