@@ -257,7 +257,7 @@ def rot_pin_align(
     yield from bps.mv(rot_aligner.gc_positioner.cam_y, best_cam_y)
 
     # update rotation axis signal, if move is reasonable rois will auto-update
-    # yield from bps.abs_set(rot_aligner.proposed_rot_axis, rot_axis_pix.item(0))
+    yield from bps.abs_set(rot_aligner.proposed_rot_axis, rot_axis_pix.item(0))
 
     # bump pin tip to line up with cross-hair for human result inspector
     yield from bps.mvr(long_motor, -27)
