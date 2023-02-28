@@ -217,7 +217,7 @@ def rot_pin_align(
     # third alignment, do not attempt to move, just measure
     _, _, rot_axis_pix = yield from measure_rot_axis(
         rot_aligner.cam_hi,
-        rot_aligner.cam_hi.stats4.max_xy.y,
+        rot_aligner.cam_hi.cv1.outputs.output2,  # contours
         "rot_align_contour",
         rot_motor,
         omega_start,
