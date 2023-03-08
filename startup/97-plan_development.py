@@ -218,15 +218,17 @@ def rot_pin_align(
     yield from bps.abs_set(rot_aligner.cam_hi.cam_mode, "rot_align_contour")
     scan_uid = yield from bp.count([rot_aligner.cam_hi], 5)
     delta_x = (
-        np.mean(
-            db[scan_uid].table()[
-                f"{rot_aligner.cam_hi.cv1.outputs.output1.name}"
-            ]
+        rot_aligner.cam_hi.roi2.bin_.x.get()
+        * (
+            np.mean(
+                db[scan_uid].table()[
+                    f"{rot_aligner.cam_hi.cv1.outputs.output1.name}"
+                ]
+            )
+            - 320
         )
-        - 320
-    ) / (
-        0.5 * rot_aligner.cam_hi.pix_per_um.get()
-    )  # scale by half to account for ROI2 binning
+        / (rot_aligner.cam_hi.pix_per_um.get())
+    )  # scale to account for ROI binning
     yield from bps.mvr(gonio.gx, delta_x)
 
     # third alignment, do not attempt to move, just measure
