@@ -65,17 +65,14 @@ def beam_align():
     yield from bps.abs_set(rot_aligner.cam_hi.cam_mode, "beam_align")
 
     # which direction, x pos. pitch beam outboard (-), y pos. pitch beam up (+)
-    scan_uid = yield from bp.count([rot_aligner.cam_hi], 5)
+    scan_uid = yield from bp.count([rot_aligner.cam_hi], 1)
     centroid_x, centroid_y = (
-        db[scan_uid]
-        .table()[f"{rot_aligner.cam_hi.stats4.centroid.x.name}"][:]
-        .mean(),
-        db[scan_uid]
-        .table()[f"{rot_aligner.cam_hi.stats4.centroid.y.name}"][:]
-        .mean(),
+        db[scan_uid].table()[rot_aligner.cam_hi.cv1.outputs.output1.name][1],
+        db[scan_uid].table()[rot_aligner.cam_hi.cv1.outputs.output2.name][1],
     )
     delta_x_pix, delta_y_pix = (centroid_x - 320), (centroid_y - 256)
-    if abs(delta_x_pix) > 2.5:
+    print(delta_x_pix, delta_y_pix)
+    if abs(delta_x_pix) > 2:
 
         scan_uid = yield from rel_scan_no_reset(
             [rot_aligner.cam_hi],
@@ -85,16 +82,17 @@ def beam_align():
             10,
         )
         scan_df = db[scan_uid].table()
+        print(scan_df)
         best_hor_voltage = lin_reg(
-            scan_df[f"{kbt.hor.voltage.name}"],
-            scan_df[f"{rot_aligner.cam_hi.stats4.centroid.x.name}"],
+            scan_df[kbt.hor.readback.name],
+            scan_df[rot_aligner.cam_hi.cv1.outputs.output1.name],
             320,
         )
         print(best_hor_voltage)
         yield from bps.mv(kbt.hor, best_hor_voltage)
         yield from bps.sleep(1)
 
-    if abs(delta_y_pix) > 2.5:
+    if abs(delta_y_pix) > 2:
         scan_uid = yield from rel_scan_no_reset(
             [rot_aligner.cam_hi],
             kbt.ver,
@@ -104,8 +102,8 @@ def beam_align():
         )
         scan_df = db[scan_uid].table()
         best_ver_voltage = lin_reg(
-            scan_df[f"{kbt.ver.voltage.name}"],
-            scan_df[f"{rot_aligner.cam_hi.stats4.centroid.y.name}"],
+            scan_df[kbt.ver.readback.name],
+            scan_df[rot_aligner.cam_hi.cv1.outputs.output2.name],
             256,
         )
         print(best_ver_voltage)
