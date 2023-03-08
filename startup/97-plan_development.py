@@ -214,21 +214,19 @@ def rot_pin_align(
     yield from bps.sleep(0.1)
     yield from bps.mvr(rot_aligner.gc_positioner.real_z, -delta_z)
 
-    # bring tip to center
+    # bring tip to center, using openCV contour to define pin tip
     yield from bps.abs_set(rot_aligner.cam_hi.cam_mode, "rot_align_contour")
     scan_uid = yield from bp.count([rot_aligner.cam_hi], 5)
     delta_x = (
-        -(
-            320
-            - np.mean(
-                db[scan_uid].table()[
-                    f"{rot_aligner.cam_hi.cv1.outputs.output1.name}"
-                ]
-            )
+        np.mean(
+            db[scan_uid].table()[
+                f"{rot_aligner.cam_hi.cv1.outputs.output1.name}"
+            ]
         )
-        / rot_aligner.cam_hi.pix_per_um.get()
-    )
-
+        - 320
+    ) / (
+        0.5 * rot_aligner.cam_hi.pix_per_um.get()
+    )  # scale by half to account for ROI2 binning
     yield from bps.mvr(gonio.gx, delta_x)
 
     # third alignment, do not attempt to move, just measure
@@ -275,19 +273,6 @@ def rot_pin_align(
 
     # update rotation axis signal, if move is reasonable rois will auto-update
     yield from bps.abs_set(rot_aligner.proposed_rot_axis, rot_axis_pix.item(0))
-
-    # bump pin tip to line up with cross-hair for human result inspector
-    # yield from bps.mvr(long_motor, -27)
-
-
-def test_plan2():
-    yield from bps.abs_set(rot_aligner.cam_hi.cam_mode, "rot_align")
-    yield from bp.rel_list_scan(
-        [rot_aligner.cam_hi],
-        gonio.o,
-        [0, 90, 180, 270],
-        per_step=ten_per_step,
-    )
 
 
 def compare_plans():
