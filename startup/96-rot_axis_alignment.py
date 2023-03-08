@@ -336,8 +336,8 @@ class RotAlignHighMag(StandardProsilica):
                     ("cv1.func_sets.func_set3", "None"),
                     ("cv1.inputs.input1", 1),  # num. contours
                     ("cv1.inputs.input2", 5),  # blur
-                    ("cv1.inputs.input3", 40),  # threshold value
-                    ("cv1.inputs.input4", 6000),  # upper size
+                    ("cv1.inputs.input3", 50),  # threshold value
+                    ("cv1.inputs.input4", 40000),  # upper size
                     ("cv1.inputs.input5", 1000),  # min. size
                     ("cc1.enable", 1),
                     ("proc1.nd_array_port", "CC1"),
