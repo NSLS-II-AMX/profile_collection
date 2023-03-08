@@ -250,6 +250,7 @@ class RotAlignHighMag(StandardProsilica):
                 [
                     ("cam.acquire_time", 0.15),
                     ("cam.acquire_period", 0.15),
+                    ("cam.trigger_mode", 5),
                     ("cv1.enable", 1),
                     ("cv1.nd_array_port", "ROI4"),
                     ("cv1.func_sets.func_set1", "Canny Edge Detection"),
