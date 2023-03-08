@@ -310,6 +310,7 @@ class RotAlignHighMag(StandardProsilica):
                     ("cc1.nd_array_port", "CAM"),
                     ("proc1.nd_array_port", "CC1"),
                     ("proc1.enable", 0),
+                    ("proc1.enable_filter", 0),
                     ("cv1.enable", 1),
                     ("cv1.nd_array_port", "ROI2"),
                     ("cv1.func_sets.func_set1", "None"),
