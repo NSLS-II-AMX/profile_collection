@@ -329,8 +329,8 @@ class RotAlignHighMag(StandardProsilica):
         elif self.cam_mode.get() == "beam_align":
             self.stage_sigs.update(
                 [
-                    ("cam.acquire_time", 0.15),
-                    ("cam.acquire_period", 0.15),
+                    ("cam.acquire_time", 0.6),
+                    ("cam.acquire_period", 0.6),
                     ("cv1.enable", 1),
                     ("cv1.nd_array_port", "ROI1"),
                     ("cv1.func_sets.func_set1", "None"),
