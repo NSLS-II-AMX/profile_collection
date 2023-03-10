@@ -7,6 +7,10 @@ Created on Tue Sep 27 16:39:13 2022
 """
 
 from toolz import partition
+from mxtools.governor import _make_governors
+
+gov = _make_governors("XF:17IDB-ES:AMX", name="gov")
+gov_rbt = gov.gov.Robot
 
 
 def rel_scan_no_reset(detectors, *args, num=None, per_step=None, md=None):
@@ -51,7 +55,34 @@ def rel_scan_no_reset(detectors, *args, num=None, per_step=None, md=None):
 
 
 def beam_align():
-    def lin_reg(independent, dependent, goal, **kwargs):
+    """bluesky plan for beam alignment with ADCompVision plugin and KB mirror
+    piezo tweaks. This plan can be run from any governor state that can access
+    BL if no sample is mounted."""
+
+    # do nothing if there is a sample mounted to avoid collisions
+    if smart_magnet.sample_detect.get() == 0:
+        return
+
+    # wait for attenuators to finish moving
+    yield from bps.abs_set(mxatten, 0.002)
+    yield from bps.sleep(5)
+
+    # transition to BL and open shutter
+    yield from bps.abs_set(gov_rbt, "BL", wait=True)
+    yield from bps.mv(sht.r, 0)
+
+    yield from bps.abs_set(rot_aligner.cam_hi.cam_mode, "beam_align")
+
+    # which direction, x pos. pitch beam outboard (-), y pos. pitch beam up (+)
+    scan_uid = yield from bp.count([rot_aligner.cam_hi], 1)
+    centroid_x, centroid_y = (
+        db[scan_uid].table()[rot_aligner.cam_hi.cv1.outputs.output1.name][1],
+        db[scan_uid].table()[rot_aligner.cam_hi.cv1.outputs.output2.name][1],
+    )
+    yield from bps.abs_set(kbt.hor.delta_px, (centroid_x - 320))
+    yield from bps.abs_set(kbt.ver.delta_px, (centroid_y - 256))
+
+    def lin_reg(independent, dependent, goal, **kwargs) -> float:
         b = dependent
         A = np.matrix([[pos, 1] for pos in independent])
         p = (
@@ -62,49 +93,25 @@ def beam_align():
         best = (goal - p[1]) / p[0]
         return best
 
-    yield from bps.abs_set(rot_aligner.cam_hi.cam_mode, "beam_align")
+    for axis, center in (kbt.hor, 320), (kbt.ver, 256):
+        # skip if we are within 1 um
+        if abs(axis.delta_px.get()) > 2:
+            scan_uid = yield from rel_scan_no_reset(
+                [rot_aligner.cam_hi],
+                axis,
+                0,
+                0.4 * -(axis.delta_px.get() / abs(axis.delta_px.get())),
+                10,
+            )
+            scan_df = db[scan_uid].table()
+            best_voltage = lin_reg(
+                scan_df[axis.readback.name],
+                scan_df[rot_aligner.cam_hi.cv1.outputs.output1.name],
+                center,
+            )
+            yield from bps.mv(axis, best_voltage)
+            yield from bps.sleep(1)
 
-    # which direction, x pos. pitch beam outboard (-), y pos. pitch beam up (+)
-    scan_uid = yield from bp.count([rot_aligner.cam_hi], 1)
-    centroid_x, centroid_y = (
-        db[scan_uid].table()[rot_aligner.cam_hi.cv1.outputs.output1.name][1],
-        db[scan_uid].table()[rot_aligner.cam_hi.cv1.outputs.output2.name][1],
-    )
-    delta_x_pix, delta_y_pix = (centroid_x - 320), (centroid_y - 256)
-    print(delta_x_pix, delta_y_pix)
-    if abs(delta_x_pix) > 2:
-
-        scan_uid = yield from rel_scan_no_reset(
-            [rot_aligner.cam_hi],
-            kbt.hor,
-            0,
-            0.4 * -(delta_x_pix / abs(delta_x_pix)),
-            10,
-        )
-        scan_df = db[scan_uid].table()
-        print(scan_df)
-        best_hor_voltage = lin_reg(
-            scan_df[kbt.hor.readback.name],
-            scan_df[rot_aligner.cam_hi.cv1.outputs.output1.name],
-            320,
-        )
-        print(best_hor_voltage)
-        yield from bps.mv(kbt.hor, best_hor_voltage)
-        yield from bps.sleep(1)
-
-    if abs(delta_y_pix) > 2:
-        scan_uid = yield from rel_scan_no_reset(
-            [rot_aligner.cam_hi],
-            kbt.ver,
-            0,
-            0.4 * (delta_y_pix / abs(delta_y_pix)),
-            10,
-        )
-        scan_df = db[scan_uid].table()
-        best_ver_voltage = lin_reg(
-            scan_df[kbt.ver.readback.name],
-            scan_df[rot_aligner.cam_hi.cv1.outputs.output2.name],
-            256,
-        )
-        print(best_ver_voltage)
-        yield from bps.mv(kbt.ver, best_ver_voltage)
+    # close shutters and reset attenuators for manual viewing
+    yield from bps.mv(sht.r, 20)
+    yield from bps.abs_set(mxatten, 0.01)
