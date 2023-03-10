@@ -61,52 +61,8 @@ class SpecialProsilica(ProsilicaDetector):
 class KBTweakerAxis(PVPositionerIsClose):
     setpoint = Cpt(EpicsSignal, "")
     readback = Cpt(EpicsSignalRO, "RBV")
+    delta_px = Cpt(Signal, value=0, doc="distance to ROI center in pixels")
     rtol = 0.01
-
-    """
-    voltage = Cpt(EpicsSignal, "", kind="hinted")
-    step_size = Cpt(EpicsSignal, ".INPA", kind="config")
-    actuate = Cpt(EpicsSignal, ".B", kind="omitted")
-
-    def __init__(self, *args, voltage_limit=2, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.voltage_limit = voltage_limit
-        self._status = None
-
-    def set(self, target):
-        if self._status is not None and not self._status.done:
-            raise RuntimeError("Another set is in progress")
-
-        if abs(target) > self.voltage_limit:
-            raise ValueError(
-                f"You passed {target!r} with out of ±{self.voltage_limit} gamut."
-            )
-
-        # get the step size
-        step_size = float(self.step_size.get())
-        # get the current voltage
-        current = self.voltage.get()
-        # compute number of "steps" to take
-        num_steps = int(np.round(abs(target - current) / step_size))
-        # step direction
-        try:
-            step_direction = (target - current) / abs(target - current)
-        except ZeroDivisionError:
-            step_direction = 0
-
-        def deadband(*, old_value, value, **kwargs):
-            # if with in half a step size, declare victory
-            if abs(value - target) < (step_size / 2):
-                return True
-            return False
-
-        self._status = status = SubscriptionStatus(self.voltage, deadband)
-        if not status.done:
-            for k in range(0, num_steps):
-                self.actuate.put(step_direction)
-                time.sleep(1)
-        return status
-        """
 
 
 class KBTweaker(Device):
@@ -177,6 +133,16 @@ class MXAttenuator(PVPositionerComparator):
             ]
         )
 
+
+class SmartMagnet(Device):
+    sample_detect = Cpt(
+        EpicsSignalRO,
+        "SampleDetected1-Sts",
+        doc="1 is NO sample, 0 is YES sample",
+    )
+
+
+smart_magnet = SmartMagnet("XF:17IDB-ES:AMX{Wago:1}", name="smart_magnet")
 
 mxatten = MXAttenuator(
     "XF:17IDB-OP:AMX{Attn:BCU}", name="mxatten", settle_time=5
