@@ -39,7 +39,7 @@ def rel_scan_no_reset(detectors, *args, num=None, per_step=None, md=None):
     md : dict, optional
         metadata
     """
-    _md = {"plan_name": "rel_scan"}
+    _md = {"plan_name": "rel_scan_no_reset"}
     md = md or {}
     _md.update(md)
     motors = [motor for motor, start, stop in partition(3, args)]
