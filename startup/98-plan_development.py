@@ -55,9 +55,7 @@ def rel_scan_no_reset(detectors, *args, num=None, per_step=None, md=None):
     return (yield from inner_rel_scan())
 
 
-@reset_positions_decorator(
-    [sht.r, mxatten.atten1, mxatten.atten2, mxatten.atten3, mxatten.atten4]
-)
+@reset_positions_decorator([sht.r])
 def beam_align():
     """bluesky plan for beam alignment with ADCompVision plugin and KB mirror
     piezo tweaks. This plan can be run from any governor state that can access
@@ -65,7 +63,7 @@ def beam_align():
 
     # do nothing if there is a sample mounted to avoid collisions
     if smart_magnet.sample_detect.get() == 0:
-        return
+        raise Exception("Sample mounted on gonio! Avoided collision")
 
     # wait for attenuators to finish moving
     yield from bps.abs_set(mxatten, 0.002)
@@ -83,6 +81,10 @@ def beam_align():
         db[scan_uid].table()[rot_aligner.cam_hi.cv1.outputs.output1.name][1],
         db[scan_uid].table()[rot_aligner.cam_hi.cv1.outputs.output2.name][1],
     )
+
+    if np.isclose(0, centroid_x) or np.isclose(0, centroid_y):
+        raise Exception("No centroid detected!")
+
     yield from bps.abs_set(kbt.hor.delta_px, (centroid_x - 320))
     yield from bps.abs_set(kbt.ver.delta_px, -(centroid_y - 256))
 
