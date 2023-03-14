@@ -93,7 +93,11 @@ def beam_align():
         best = (goal - p[1]) / p[0]
         return best
 
-    for axis, center in (kbt.hor, 320), (kbt.ver, 256):
+    for axis, signal, center in (
+        kbt.hor,
+        rot_aligner.cam_hi.cv1.outputs.output1,
+        320,
+    ), (kbt.ver, rot_aligner.cam_hi.cv1.outputs.output2, 256):
         # skip if we are within 1 um
         if abs(axis.delta_px.get()) > 2:
             scan_uid = yield from rel_scan_no_reset(
@@ -106,7 +110,7 @@ def beam_align():
             scan_df = db[scan_uid].table()
             best_voltage = lin_reg(
                 scan_df[axis.readback.name],
-                scan_df[rot_aligner.cam_hi.cv1.outputs.output1.name],
+                scan_df[signal.name],
                 center,
             )
             yield from bps.mv(axis, best_voltage)
@@ -114,4 +118,3 @@ def beam_align():
 
     # close shutters and reset attenuators for manual viewing
     yield from bps.mv(sht.r, 20)
-    yield from bps.abs_set(mxatten, 0.01)
