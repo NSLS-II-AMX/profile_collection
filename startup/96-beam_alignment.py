@@ -63,6 +63,7 @@ class KBTweakerAxis(PVPositionerIsClose):
     readback = Cpt(EpicsSignalRO, "RBV")
     delta_px = Cpt(Signal, value=0, doc="distance to ROI center in pixels")
     rtol = 0.01
+    limits = (-2.5, 2.5)
 
 
 class KBTweaker(Device):
