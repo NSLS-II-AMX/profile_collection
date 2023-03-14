@@ -7,6 +7,7 @@ Created on Tue Sep 27 16:39:13 2022
 """
 
 from toolz import partition
+from bluesky.preprocessors import reset_positions_decorator
 from mxtools.governor import _make_governors
 
 gov = _make_governors("XF:17IDB-ES:AMX", name="gov")
@@ -54,6 +55,9 @@ def rel_scan_no_reset(detectors, *args, num=None, per_step=None, md=None):
     return (yield from inner_rel_scan())
 
 
+@reset_positions_decorator(
+    [sht.r, mxatten.atten1, mxatten.atten2, mxatten.atten3, mxatten.atten4]
+)
 def beam_align():
     """bluesky plan for beam alignment with ADCompVision plugin and KB mirror
     piezo tweaks. This plan can be run from any governor state that can access
@@ -80,7 +84,7 @@ def beam_align():
         db[scan_uid].table()[rot_aligner.cam_hi.cv1.outputs.output2.name][1],
     )
     yield from bps.abs_set(kbt.hor.delta_px, (centroid_x - 320))
-    yield from bps.abs_set(kbt.ver.delta_px, (centroid_y - 256))
+    yield from bps.abs_set(kbt.ver.delta_px, -(centroid_y - 256))
 
     def lin_reg(independent, dependent, goal, **kwargs) -> float:
         b = dependent
