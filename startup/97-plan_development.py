@@ -208,7 +208,7 @@ def rot_pin_align(
     # move to last good gonio xyz values
     yield from bps.mv(rot_aligner.gc_positioner.real_y, -362)
     yield from bps.mv(rot_aligner.gc_positioner.real_z, -2)
-    yield from bps.mv(long_motor, 5055)
+    yield from bps.mv(long_motor, 5155)
 
     # find optimal omega for sheath opening
     omega_scan_uid = yield from bp.scan(
@@ -220,34 +220,11 @@ def rot_pin_align(
     ]
     yield from bps.mv(rot_motor, omega_start)
 
-    # prepare pin position for alignment
-    yield from align_centroid(
-        rot_aligner.cam_lo,
-        rot_aligner.cam_lo.roi1,
-        gonio.gx,
-        rot_aligner.gc_positioner.cam_y,
-        gonio.o,
-    )
-    # the pin may still be off axis, 'bump' it a little to bring to center
-    yield from bps.abs_set(rot_aligner.cam_lo.cam_mode, "edge_detection")
-    scan_uid = yield from bp.count([rot_aligner.cam_lo], 1)
-    ver_center = db[scan_uid].table()[
-        rot_aligner.cam_lo.cv1.outputs.output3.name
-    ][1]
-    yield from bps.mvr(
-        rot_aligner.gc_positioner.cam_y,
-        (ver_center / rot_aligner.cam_lo.pix_per_um.get()) - 256,
-    )
-
     # focus scan
     best_z = yield from pin_focus_scan(
         rot_aligner.cam_hi, rot_aligner.gc_positioner.cam_z
     )
     yield from bps.mv(rot_aligner.gc_positioner.cam_z, best_z)
-
-    # move pin tip past ROI
-    delta_long = yield from measure_tip_dist(rot_aligner.cam_hi)
-    yield from bps.mvr(long_motor, delta_long)
 
     # first coarse alignment
     delta_y, delta_z, rot_axis_pix = yield from measure_rot_axis(
