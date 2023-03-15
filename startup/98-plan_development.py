@@ -55,7 +55,7 @@ def rel_scan_no_reset(detectors, *args, num=None, per_step=None, md=None):
     return (yield from inner_rel_scan())
 
 
-@reset_positions_decorator([sht.r])
+@reset_positions_decorator([sht.r, gov_rbt])
 def beam_align():
     """bluesky plan for beam alignment with ADCompVision plugin and KB mirror
     piezo tweaks. This plan can be run from any governor state that can access
