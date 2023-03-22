@@ -206,8 +206,8 @@ def rot_pin_align(
     """
 
     # move to last good gonio xyz values
-    yield from bps.mv(rot_aligner.gc_positioner.real_y, -362)
-    yield from bps.mv(rot_aligner.gc_positioner.real_z, -2)
+    yield from bps.mv(rot_aligner.gc_positioner.real_y, -198)
+    yield from bps.mv(rot_aligner.gc_positioner.real_z, 240)
     yield from bps.mv(long_motor, 5155)
 
     # find optimal omega for sheath opening
