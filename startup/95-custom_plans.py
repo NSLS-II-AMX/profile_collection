@@ -477,20 +477,20 @@ def set_energy(energy,use_diode=False):
                              7.890, 7.960, 6.700, 6.940, 6.460, 6.510, 6.658,
                              6.758, 6.890, 7.057, 7.255, 6.500, 6.574, 7.110, 6.500])*1000),
 
-        vdcm.g: (energies, [15.990, 15.445, 15.250, 15.160, 15.160, 15.130, 15.050, 15.010,
+        vdcm.g: (energies, [16.020, 15.445, 15.250, 15.160, 15.160, 15.130, 15.050, 15.010,
                             14.970, 14.970, 14.970, 14.950, 14.910, 14.890,
                             14.870, 14.870, 14.850, 14.830, 14.800, 14.800,
                             14.770, 14.770, 14.770, 14.770]),
 
         
-        vdcm.r:  (energies, [5.870, 5.870, 5.870, 5.870, 5.870, 5.870, 5.870, 5.870, 5.870,
+        vdcm.r:  (energies, [5.950, 5.937, 5.925, 5.924, 5.922, 5.920, 5.918, 5.915, 5.912,
                             5.870, 5.870, 5.870, 5.870, 5.870, 5.870, 5.870, 5.870, 5.870,
                             5.870, 5.870, 5.870, 5.870, 5.870, 5.870]),
     }
 
     # Last Good Position
     LGP = {
-        vdcm.p:  6.506,
+        vdcm.p:  6.504,
         kbm.vx:  0,
         kbm.vy:  1.870,
         kbm.vp: -3.669,
@@ -510,7 +510,7 @@ def set_energy(energy,use_diode=False):
     yield from bps.mv(
         *lut(ivu_gap),   # Set IVU Gap interpolated position
         vdcm.e, energy,  # Set Bragg Energy pseudomotor
-     #   *lut(vdcm.g),    # Set DCM Gap interpolated position
+        *lut(vdcm.g),    # Set DCM Gap interpolated position
         *lut(vdcm.r),     # Set DCM Roll interpolated position
         *lgp(vdcm.p),     # Set Pitch to last known good position
 
@@ -573,7 +573,7 @@ def set_energy(energy,use_diode=False):
     ax3.imshow(image.reshape(height, width), cmap='jet')
 
 
-def vdcm_rock_test(vdcm_p_range=0.02, vdcm_p_points=51, logging = True):
+def vdcm_rock_test(vdcm_p_range=0.03, vdcm_p_points=61, logging = True):
     """
     Scan vdcm crystal 2 pitch to maximize flux on BPM1
 
@@ -587,7 +587,7 @@ def vdcm_rock_test(vdcm_p_range=0.02, vdcm_p_points=51, logging = True):
     """
 
     yield from bps.mv(
-        vdcm.p, 6.5057     # Set Pitch interpolated position
+        vdcm.p, 6.5040     # Set Pitch interpolated position
     )
     
     ax1 = plt.subplot(111)
