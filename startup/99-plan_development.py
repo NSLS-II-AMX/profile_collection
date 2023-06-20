@@ -87,19 +87,31 @@ def topview_plan():
         min1 = (270 - 180 * np.arctan2(p0[0], p0[1]) / np.pi) / 2
         min2 = (-90 - 180 * np.arctan2(p0[0], p0[1]) / np.pi) / 2
         omega_min = [min1, min2][np.abs([min1, min2]).argmin()]
+
+        ft = np.fft.fft(b.to_numpy())
+        sample = 300*len(b)
+        zb = np.zeros(sample, dtype=np.complex_)
+        scale = len(zb)/len(ft)
+        zb[0:len(ft)//2] = ft[0:len(ft)//2]
+        zb[-(len(ft)//2 - 1):] = ft[len(ft)//2 + 1:]
+        ift = scale*np.fft.ifft(zb)
+        omega_min = np.linspace(
+            omega_list.iloc[0], omega_list.iloc[-1], sample)[ift.argmin()]
+        print(omega_min)
+
         return delta_y, delta_z, omega_min
 
     # configure cam
     yield from bps.abs_set(topcam.cam_mode, "coarse_align")
 
     # ROI check for pin
-    scan_uid = yield from bp.count([topcam], 1)
-    if db[scan_uid].table()[f"{topcam.cv1.outputs.output9.name}"][1] < 0:
-        return
+    # scan_uid = yield from bp.count([topcam], 1)
+    # if db[scan_uid].table()[f"{topcam.cv1.outputs.output9.name}"][1] < 0:
+    #    return
 
     # coarse rotation axis align
     delta_y, delta_z, _ = yield from inner_rot_scan(
-        [topcam], gonio.o, 0, 120, 3
+        [topcam], gonio.o, 0, 180, 4
     )
 
     # prevent large, erratic movements
@@ -112,15 +124,15 @@ def topview_plan():
     yield from bps.mvr(gonio.pz, -delta_z)
 
     # horizontal bump
-    scan_uid = yield from bp.count([topcam], 1)
-    x = db[scan_uid].table()[f"{topcam.cv1.outputs.output8.name}"][1]
-    delta_x = ((topcam.roi2.size.x.get() / 2) - x) / topcam.pix_per_um.get()
-    yield from bps.mvr(gonio.gx, delta_x)
+    # scan_uid = yield from bp.count([topcam], 1)
+    #x = db[scan_uid].table()[f"{topcam.cv1.outputs.output8.name}"][1]
+    #delta_x = ((topcam.roi2.size.x.get() / 2) - x) / topcam.pix_per_um.get()
+    # yield from bps.mvr(gonio.gx, delta_x)
 
     # finer rotation axis align, plus more in-focus face on omega determined
     yield from bps.abs_set(topcam.cam_mode, "fine_face")
     delta_y, delta_z, omega_min = yield from inner_rot_scan(
-        [topcam], gonio.o, 120, 0, 6
+        [topcam], gonio.o, 180, 0, 40
     )
 
     # prevent large movements
