@@ -28,7 +28,10 @@ from ophyd.areadetector.filestore_mixins import (
 from ophyd import Component as Cpt
 from ophyd.status import SubscriptionStatus
 
-import time
+from ophyd.pv_positioner import (
+    PVPositionerComparator,
+    PVPositionerIsClose,
+)
 
 
 class SpecialProsilica(ProsilicaDetector):
@@ -55,56 +58,93 @@ class SpecialProsilica(ProsilicaDetector):
         )
 
 
-class KBTweakerAxis(Device):
-    voltage = Cpt(EpicsSignal, "", kind="hinted")
-    step_size = Cpt(EpicsSignal, ".INPA", kind="config")
-    actuate = Cpt(EpicsSignal, ".B", kind="omitted")
-
-    def __init__(self, *args, voltage_limit=2, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.voltage_limit = voltage_limit
-        self._status = None
-
-    def set(self, target):
-        if self._status is not None and not self._status.done:
-            raise RuntimeError("Another set is in progress")
-
-        if abs(target) > self.voltage_limit:
-            raise ValueError(
-                f"You passed {target!r} with out of ±{self.voltage_limit} gamut."
-            )
-
-        # get the step size
-        step_size = float(self.step_size.get())
-        # get the current voltage
-        current = self.voltage.get()
-        # compute number of "steps" to take
-        num_steps = int(np.round(abs(target - current) / step_size))
-        # step direction
-        try:
-            step_direction = (target - current) / abs(target - current)
-        except ZeroDivisionError:
-            step_direction = 0
-
-        def deadband(*, old_value, value, **kwargs):
-            # if with in half a step size, declare victory
-            if abs(value - target) < (step_size / 2):
-                return True
-            return False
-
-        self._status = status = SubscriptionStatus(self.voltage, deadband)
-        if not status.done:
-            for k in range(0, num_steps):
-                self.actuate.put(step_direction)
-                time.sleep(1)
-        return status
+class KBTweakerAxis(PVPositionerIsClose):
+    setpoint = Cpt(EpicsSignal, "")
+    readback = Cpt(EpicsSignalRO, "RBV")
+    delta_px = Cpt(Signal, value=0, doc="distance to ROI center in pixels")
+    rtol = 0.01
+    limits = (-2.5, 2.5)
 
 
 class KBTweaker(Device):
-    hor = Cpt(KBTweakerAxis, ":TwkCh1")
-    ver = Cpt(KBTweakerAxis, ":TwkCh2")
+    hor = Cpt(KBTweakerAxis, "-Motor-X}Mtr")
+    ver = Cpt(KBTweakerAxis, "-Motor-Y}Mtr")
 
 
-kbt = KBTweaker("XF:17IDB-BI:AMX{Best:2}", name="kbt")
+class MXAttenuator(PVPositionerComparator):
+    setpoint = Cpt(EpicsSignal, "Trans-SP")
+    readback = Cpt(EpicsSignalRO, "Trans-I")
+    actuate = Cpt(EpicsSignal, "Cmd:Set-Cmd.PROC")
+    atten1 = Cpt(
+        EpicsMotor,
+        "XF:17IDB-OP:AMX{Attn:BCU-Ax:1}Mtr",
+        add_prefix="",
+        doc="150 um Sn",
+    )
+    atten2 = Cpt(
+        EpicsMotor,
+        "XF:17IDB-OP:AMX{Attn:BCU-Ax:2}Mtr",
+        add_prefix="",
+        doc="50 um Al",
+    )
+    atten3 = Cpt(
+        EpicsMotor,
+        "XF:17IDB-OP:AMX{Attn:BCU-Ax:3}Mtr",
+        add_prefix="",
+        doc="6 um Al",
+    )
+    atten4 = Cpt(
+        EpicsMotor,
+        "XF:17IDB-OP:AMX{Attn:BCU-Ax:4}Mtr",
+        add_prefix="",
+        doc="20 um Sn",
+    )
+    rtol = 0.01
+    atol = None
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def done_comparator(self, readback: float, setpoint: float) -> bool:
+        """
+        Check if the readback is close to the setpoint value.
+        Uses numpy.isclose to make the comparison. Tolerance values
+        atol and rtol for numpy.isclose are taken from the attributes
+        self.atol and self.rtol, which can be defined as class attributes
+        or passed in as init parameters.
+        If atol or rtol are omitted, the default values from numpy are
+        used instead.
+        """
+        kwargs = {}
+        if self.atol is not None:
+            kwargs["atol"] = self.atol
+        if self.rtol is not None:
+            kwargs["rtol"] = self.rtol
+
+        sigs = [self.atten1, self.atten2, self.atten3, self.atten4]
+
+        return all(
+            [
+                np.isclose(
+                    np.float64(sig.user_setpoint.get()),
+                    np.float64(sig.user_readback.get()),
+                    **kwargs
+                )
+                for sig in sigs
+            ]
+        )
+
+
+class SmartMagnet(Device):
+    sample_detect = Cpt(
+        EpicsSignalRO,
+        "SampleDetected1-Sts",
+        doc="1 is NO sample, 0 is YES sample",
+    )
+
+
+smart_magnet = SmartMagnet("XF:17IDB-ES:AMX{Wago:1}", name="smart_magnet")
+
+mxatten = MXAttenuator("XF:17IDB-OP:AMX{Attn:BCU}", name="mxatten")
+kbt = KBTweaker("XF:17ID-ES:AMX{Best:2", name="kbt")
 cam_hi_ba = SpecialProsilica("XF:17IDB-ES:AMX{Cam:7}", name="cam_hi")

@@ -219,7 +219,10 @@ class RotAlignHighMag(StandardProsilica):
                 self.trans1,
             ]
         ]
+
         self.cv1.outputs.read_attrs = [
+            "output1",
+            "output2",
             "output3",
             "output7",
             "output8",
@@ -229,6 +232,10 @@ class RotAlignHighMag(StandardProsilica):
         self.stats4.max_xy.read_attrs = ["x", "y"]
         self._update_stage_sigs()
         self.roi1.min_xyz.min_y.subscribe(self._sync_rois, event_type="value")
+
+    @property
+    def trigger_signals(self):
+        return [self.cam_mode]
 
     def _update_stage_sigs(self, *args, **kwargs):
         self.stage_sigs.clear()
@@ -243,9 +250,12 @@ class RotAlignHighMag(StandardProsilica):
                 [
                     ("cam.acquire_time", 0.15),
                     ("cam.acquire_period", 0.15),
+                    ("cam.trigger_mode", 5),
                     ("cv1.enable", 1),
                     ("cv1.nd_array_port", "ROI4"),
                     ("cv1.func_sets.func_set1", "Canny Edge Detection"),
+                    ("cv1.func_sets.func_set2", "None"),
+                    ("cv1.func_sets.func_set3", "None"),
                     ("cv1.inputs.input1", 35),
                     ("cv1.inputs.input2", 5),
                     ("cv1.inputs.input3", 13),
@@ -262,6 +272,8 @@ class RotAlignHighMag(StandardProsilica):
                 [
                     ("cam.acquire_time", 0.15),
                     ("cam.acquire_period", 0.15),
+                    ("cv1.enable", 0),
+                    ("cv1.nd_array_port", "CAM"),
                     ("proc1.nd_array_port", "CC1"),
                     ("proc1.enable_filter", 1),
                     ("proc1.filter_type", "CopyToFilter"),
@@ -276,18 +288,87 @@ class RotAlignHighMag(StandardProsilica):
                     ("roi4.size.y", 1246),
                 ]
             )
+
+            self.stats4.stage_sigs.clear()
+            self.stats4.stage_sigs.update(
+                [
+                    ("enable", 1),
+                    ("blocking_callbacks", "Yes"),
+                ]
+            )
+
+        elif self.cam_mode.get() == "rot_align_contour":
+            self.stage_sigs.update(
+                [
+                    ("cam.acquire_time", 0.15),
+                    ("cam.acquire_period", 0.15),
+                    (
+                        "cam.num_images",
+                        2,
+                    ),  # this reduces missed triggers, why?
+                    ("cam.trigger_mode", 5),
+                    ("cc1.enable", 1),
+                    ("cc1.nd_array_port", "CAM"),
+                    ("proc1.nd_array_port", "CC1"),
+                    ("proc1.enable", 0),
+                    ("proc1.enable_filter", 0),
+                    ("cv1.enable", 1),
+                    ("cv1.nd_array_port", "ROI2"),
+                    ("cv1.func_sets.func_set1", "None"),
+                    ("cv1.func_sets.func_set2", "None"),
+                    ("cv1.func_sets.func_set3", "User Function"),
+                    ("cv1.inputs.input1", 33),
+                    ("cv1.inputs.input2", 8),
+                    ("cv1.inputs.input3", 7),
+                    ("cv1.inputs.input4", 5),
+                ]
+            )
+
+            self._disable_stats_plugins()
+
         elif self.cam_mode.get() == "beam_align":
             self.stage_sigs.update(
                 [
-                    ("cam.acquire_time", 0.2),
-                    ("stats4.centroid_threshold", 10),
+                    ("cam.acquire_time", 0.6),
+                    ("cam.acquire_period", 0.6),
+                    ("cv1.enable", 1),
+                    ("cv1.nd_array_port", "ROI1"),
+                    ("cv1.func_sets.func_set1", "None"),
+                    ("cv1.func_sets.func_set2", "Centroid Identification"),
+                    ("cv1.func_sets.func_set3", "None"),
+                    ("cv1.inputs.input1", 1),  # num. contours
+                    ("cv1.inputs.input2", 5),  # blur
+                    ("cv1.inputs.input3", 50),  # threshold value
+                    ("cv1.inputs.input4", 40000),  # upper size
+                    ("cv1.inputs.input5", 1000),  # min. size
+                    ("cc1.enable", 1),
                     ("proc1.nd_array_port", "CC1"),
-                    ("roi4.min_xyz.min_x", self.roi1.min_xyz.min_x.get()),
-                    ("roi4.min_xyz.min_y", self.roi1.min_xyz.min_y.get()),
-                    ("roi4.size.x", 570),
-                    ("roi4.size.y", 570),
                 ]
             )
+
+            self._disable_stats_plugins()
+
+    def _disable_stats_plugins(self):
+        # disable stats plugins, reduce ioc load, avoid missing triggers
+        stats_plugins = [
+            self.stats1,
+            self.stats2,
+            self.stats3,
+            self.stats4,
+            self.stats5,
+        ]
+
+        [_plugin.stage_sigs.clear() for _plugin in stats_plugins]
+
+        [
+            _plugin.stage_sigs.update(
+                [
+                    ("enable", 0),
+                    ("blocking_callbacks", "No"),
+                ]
+            )
+            for _plugin in stats_plugins
+        ]
 
     def _sync_rois(self, *args, **kwargs):
         self.roi2.min_xyz.min_y.put(
