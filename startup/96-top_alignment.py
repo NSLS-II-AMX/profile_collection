@@ -46,8 +46,6 @@ class TopAlignCam(StandardProsilica):
         self.stage_sigs.clear()
         self.stage_sigs.update(
             [
-                ("cam.acquire", 0),
-                ("cam.image_mode", 0),
                 ("cv1.func_sets.func_set1", "Canny Edge Detection"),
                 ("cv1.inputs.input1", 8),
                 ("cv1.inputs.input2", 3),
@@ -85,13 +83,48 @@ class ZebraMXOr(Zebra):
     armsel = Cpt(EpicsSignal, "PC_ARM_SEL")
 
 
-class RotationalAligner(Device):
-    zebra = Cpt(ZebraMXOr, 'XF:17IDB-ES:AMX{Zeb:2}:')
-    camera = Cpt(TopAlignCam, 'XF:17IDB-ES:AMX{Cam:9}', kind="hinted")
+class TopAlignerBase(Device):
+
+    topcam = Cpt(TopAlignCam, "XF:17IDB-ES:AMX{Cam:9}")
     gonio_o = Cpt(EpicsMotor, "XF:17IDB-ES:AMX{Gon:1-Ax:O}Mtr")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.read_attrs = []
+        self._configure_device()
+
+    def _configure_device(self, *args, **kwargs):
+        raise NotImplementedError(
+            "Subclasses must implement custom device configuration")
+
+    def stage(self, *args, **kwargs):
+        if type(self) == TopAlignerBase:
+            raise NotImplementedError(
+                "TopAlignerBase has no stage method")
+        super().stage(*args, **kwargs)
+
+    def trigger(self):
+        raise NotImplementedError("Subclasses must implement custom trigger")
+
+    def unstage(self, *args, **kwargs):
+        if type(self) == TopAlignerBase:
+            raise NotImplementedError(
+                "TopAlignerBase has no unstage method")
+        super().unstage(*args, **kwargs)
+
+
+class TopAlignerFast(TopAlignerBase):
+
+    zebra = Cpt(ZebraMXOr, "XF:17IDB-ES:AMX{Zeb:2}:")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        #self.align_mode.subscribe(self._configure_device, event_type="value")
+
+    def _configure_device(self, *args, **kwargs):
+        self.read_attrs = []
+        self.stage_sigs.clear()
+        self.topcam.cam_mode.set("fine_face")
         self.stage_sigs.update(
             [
                 ("zebra.pos_capt.source", "Enc4"),
@@ -108,22 +141,25 @@ class RotationalAligner(Device):
                 ("zebra.pos_capt.pulse.max_pulses", 1),
                 ("zebra.or3", 1),
                 ("zebra.or3loc", 30),
+                ("topcam.cam.trigger_mode", 1),
+                ("topcam.cam.image_mode", 2),
+                ("topcam.cam.acquire", 1),
             ]
         )
-        self.camera.stage_sigs.update(
-            [
-                ("cam.trigger_mode", 1),
-                ("cam.image_mode", 2),
-                ("cam.acquire", 1),
-            ]
-        )
-        self.read_attrs = ["camera.out10_buffer", "camera.out9_buffer"]
+
+        self.read_attrs = ["topcam.out10_buffer",
+                           "topcam.out9_buffer",
+                           "zebra.pos_capt.data.enc4"]
 
     def stage(self, *args, **kwargs):
         # self.camera.out10_reset.set(1)
         # self.camera.out9_reset.set(1)
+
         super().stage(*args, **kwargs)
 
+        # self.topcam.cam.trigger_mode.put(1)
+        # self.topcam.cam.image_mode.put(2)
+        # self.topcam.cam.acquire.put(1)
         def callback_armed(value, old_value, **kwargs):
             if old_value == 0 and value == 1:
                 return True
@@ -132,14 +168,14 @@ class RotationalAligner(Device):
         callback_armed_status = SubscriptionStatus(
             self.zebra.pos_capt.arm.output, callback_armed, run=False)
         self.zebra.pos_capt.arm.arm.set(1, settle_time=0.5)
-        callback_armed_status.wait()
-        return callback_armed_status
+        callback_armed_status.wait(timeout=2)
 
     def unstage(self, **kwargs):
         super().unstage(**kwargs)
         self.zebra.pos_capt.arm.disarm.set(1)
 
     def trigger(self):
+
         def callback_unarmed(value, old_value, **kwargs):
             if old_value == 1 and value == 0:
                 return True
@@ -148,11 +184,39 @@ class RotationalAligner(Device):
         callback_unarmed_status = SubscriptionStatus(
             self.zebra.pos_capt.arm.output, callback_unarmed, run=False)
         self.gonio_o.set(0)
-        return(callback_unarmed_status)
-
-    # def read(self):
-    #
-    #    return(
+        return callback_unarmed_status
 
 
-rot_align_test = RotationalAligner(name='rat')
+class TopAlignerSlow(TopAlignerBase):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _configure_device(self, *args, **kwargs):
+
+        self.read_attrs = []
+        self.stage_sigs.clear()
+        self.stage_sigs.update(
+            [
+                ("topcam.cam.trigger_mode", 5),
+                ("topcam.cam.image_mode", 2),
+                ("topcam.cam.acquire", 0),
+            ]
+        )
+        self.topcam.cam_mode.set("coarse_align")
+        self.topcam.stage_sigs.update(
+            [
+                (""),
+                (),
+            ]
+        )
+        self.read_attrs = ["topcam.cv1.outputs.output9",
+                           "topcam.cv1.outputs.output10",
+                           "gonio_o"]
+
+    def trigger(self):
+        return self.topcam.trigger()
+
+
+top_aligner_fast = TopAlignerFast(name='top_aligner_fast')
+top_aligner_slow = TopAlignerSlow(name='top_aligner')
