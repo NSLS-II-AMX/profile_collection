@@ -119,7 +119,6 @@ class TopAlignerFast(TopAlignerBase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        #self.align_mode.subscribe(self._configure_device, event_type="value")
 
     def _configure_device(self, *args, **kwargs):
         self.read_attrs = []
@@ -152,14 +151,8 @@ class TopAlignerFast(TopAlignerBase):
                            "zebra.pos_capt.data.enc4"]
 
     def stage(self, *args, **kwargs):
-        # self.camera.out10_reset.set(1)
-        # self.camera.out9_reset.set(1)
-
         super().stage(*args, **kwargs)
 
-        # self.topcam.cam.trigger_mode.put(1)
-        # self.topcam.cam.image_mode.put(2)
-        # self.topcam.cam.acquire.put(1)
         def callback_armed(value, old_value, **kwargs):
             if old_value == 0 and value == 1:
                 return True
@@ -199,23 +192,20 @@ class TopAlignerSlow(TopAlignerBase):
         self.stage_sigs.update(
             [
                 ("topcam.cam.trigger_mode", 5),
-                ("topcam.cam.image_mode", 2),
+                ("topcam.cam.image_mode", 1),
                 ("topcam.cam.acquire", 0),
             ]
         )
         self.topcam.cam_mode.set("coarse_align")
-        self.topcam.stage_sigs.update(
-            [
-                (""),
-                (),
-            ]
-        )
         self.read_attrs = ["topcam.cv1.outputs.output9",
                            "topcam.cv1.outputs.output10",
                            "gonio_o"]
 
     def trigger(self):
         return self.topcam.trigger()
+
+    def read(self):
+        return self.topcam.read()
 
 
 top_aligner_fast = TopAlignerFast(name='top_aligner_fast')
