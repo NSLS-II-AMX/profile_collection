@@ -7,6 +7,7 @@ Created on Wed Nov  2 17:52:45 2022
 """
 
 from enum import Enum
+from scipy.interpolate import interp1d
 
 
 class TopPlanLimit(Enum):
@@ -46,19 +47,20 @@ def topview_plan():
 
     def inner_rot_scan(*args, **kwargs):
         """rotate omega with ADCompVision plugin configured to read loop tip
-        Canny edge and thresholding for face on loop centering.
+        Canny edge for bringing loop tip onto rotation axis.
         """
 
         # scan yields info for simultaneous face on, rot axis centering
         scan_uid = yield from bp.scan(*args, **kwargs)
-        omega_list = db[scan_uid].table()["gonio_o"]
+        omega_list = db[scan_uid].table()[top_aligner_slow.gonio_o.name]
         d = np.pi / 180
 
         # rot axis calculation
         A_rot = np.matrix(
             [[np.cos(omega * d), np.sin(omega * d), 1] for omega in omega_list]
         )
-        b_rot = db[scan_uid].table()[f"{topcam.cv1.outputs.output9.name}"]
+        b_rot = db[scan_uid].table(
+        )[top_aligner_slow.topcam.cv1.outputs.output9.name]
         p = (
             np.linalg.inv(A_rot.transpose() * A_rot)
             * A_rot.transpose()
@@ -66,19 +68,49 @@ def topview_plan():
         )
         delta_z_pix, delta_y_pix, rot_axis_pix = p[0], p[1], p[2]
         delta_y, delta_z = (
-            delta_y_pix / topcam.pix_per_um.get(),
-            delta_z_pix / topcam.pix_per_um.get(),
+            delta_y_pix / top_aligner_slow.topcam.pix_per_um.get(),
+            delta_z_pix / top_aligner_slow.topcam.pix_per_um.get(),
+        )
+        return delta_y, delta_z
+
+    def inner_pseudo_fly_scan(*args, **kwargs):
+        scan_uid = yield from bp.count(*args, **kwargs)
+        omegas = db[scan_uid].table(
+        )[top_aligner_fast.zebra.pos_capt.data.enc4.name][1]
+
+        d = np.pi / 180
+
+        # rot axis calculation, use linear regression
+        A_rot = np.matrix(
+            [[np.cos(omega * d), np.sin(omega * d), 1] for omega in omegas]
+        )
+
+        b_rot = db[scan_uid].table(
+        )[top_aligner_fast.topcam.out9_buffer.name][1]
+        p = (
+            np.linalg.inv(A_rot.transpose() * A_rot)
+            * A_rot.transpose()
+            * np.matrix(b_rot).transpose()
+        )
+
+        delta_z_pix, delta_y_pix, rot_axis_pix = p[0], p[1], p[2]
+        delta_y, delta_z = (
+            delta_y_pix / top_aligner_fast.topcam.pix_per_um.get(),
+            delta_z_pix / top_aligner_fast.topcam.pix_per_um.get(),
         )
 
         # face on calculation
+        '''
         A = np.matrix(
             [
                 [np.cos(2 * omega * d), np.sin(2 * omega * d), 1]
-                for omega in omega_list
+                for omega in omegas
             ]
         )
+        '''
 
-        b = db[scan_uid].table()[f"{topcam.cv1.outputs.output10.name}"]
+        b = db[scan_uid].table()[top_aligner_fast.topcam.out10_buffer.name][1]
+        '''
         p0 = (
             np.linalg.inv(A.transpose() * A)
             * A.transpose()
@@ -87,22 +119,29 @@ def topview_plan():
         min1 = (270 - 180 * np.arctan2(p0[0], p0[1]) / np.pi) / 2
         min2 = (-90 - 180 * np.arctan2(p0[0], p0[1]) / np.pi) / 2
         omega_min = [min1, min2][np.abs([min1, min2]).argmin()]
-
-        ft = np.fft.fft(b.to_numpy())
-        sample = 300*len(b)
+        '''
+        print("DFT")
+        ft = np.fft.fft(b)
+        sample = 300
         zb = np.zeros(sample, dtype=np.complex_)
         scale = len(zb)/len(ft)
         zb[0:len(ft)//2] = ft[0:len(ft)//2]
         zb[-(len(ft)//2 - 1):] = ft[len(ft)//2 + 1:]
         ift = scale*np.fft.ifft(zb)
+        omega_min = np.linspace(179.9, 0, sample)[ift.argmin()]
+        print(omega_min)
+
+        print("SPLINES")
+        f_splines = interp1d(omegas, b)
+        b_splines = f_splines(np.linspace(omegas[0], omegas[-1], sample))
         omega_min = np.linspace(
-            omega_list.iloc[0], omega_list.iloc[-1], sample)[ift.argmin()]
+            omegas[0], omegas[-1], sample)[b_splines.argmin()]
         print(omega_min)
 
         return delta_y, delta_z, omega_min
 
     # configure cam
-    yield from bps.abs_set(topcam.cam_mode, "coarse_align")
+    # yield from bps.abs_set(top_aligner.topcam.cam_mode, "coarse_align")
 
     # ROI check for pin
     # scan_uid = yield from bp.count([topcam], 1)
@@ -110,8 +149,8 @@ def topview_plan():
     #    return
 
     # coarse rotation axis align
-    delta_y, delta_z, _ = yield from inner_rot_scan(
-        [topcam], gonio.o, 0, 180, 4
+    delta_y, delta_z = yield from inner_rot_scan(
+        [top_aligner_slow.topcam], top_aligner_slow.gonio_o, 0, 180, 4
     )
 
     # prevent large, erratic movements
@@ -122,18 +161,20 @@ def topview_plan():
 
     yield from bps.mvr(gonio.py, delta_y)
     yield from bps.mvr(gonio.pz, -delta_z)
-
+    '''
     # horizontal bump
     # scan_uid = yield from bp.count([topcam], 1)
     #x = db[scan_uid].table()[f"{topcam.cv1.outputs.output8.name}"][1]
     #delta_x = ((topcam.roi2.size.x.get() / 2) - x) / topcam.pix_per_um.get()
     # yield from bps.mvr(gonio.gx, delta_x)
+    '''
 
     # finer rotation axis align, plus more in-focus face on omega determined
-    yield from bps.abs_set(topcam.cam_mode, "fine_face")
-    delta_y, delta_z, omega_min = yield from inner_rot_scan(
+    # yield from bps.abs_set(topcam.cam_mode, "fine_face")
+    '''delta_y, delta_z, omega_min = yield from inner_rot_scan(
         [topcam], gonio.o, 180, 0, 40
-    )
+    )'''
+    delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan([top_aligner_fast])
 
     # prevent large movements
     if (
