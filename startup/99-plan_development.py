@@ -8,6 +8,34 @@ Created on Wed Nov  2 17:52:45 2022
 
 from enum import Enum
 from scipy.interpolate import interp1d
+from bluesky.utils import FailedStatus
+from bluesky.preprocessors import relative_set_decorator
+
+
+def retry_move(func):
+    def wrapper(*args, **kwargs):
+        for j in range(2):
+            try:
+                yield from func(*args, **kwargs)
+                break
+            except FailedStatus:
+                if j == 0:
+                    print(f"{args[0].name} is stuck, retrying...")
+                    yield from bps.sleep(0.2)
+                else:
+                    raise RuntimeError(
+                        f"{args[0].name} is really stuck!")
+    return wrapper
+
+
+@retry_move
+def mvr_with_retry(*args, **kwargs):
+    yield from bps.mvr(*args, **kwargs)
+
+
+@retry_move
+def mv_with_retry(*args, **kwargs):
+    yield from bps.mv(*args, **kwargs)
 
 
 class TopPlanLimit(Enum):
@@ -51,7 +79,17 @@ def topview_plan():
         """
 
         # scan yields info for simultaneous face on, rot axis centering
-        scan_uid = yield from bp.scan(*args, **kwargs)
+        for j in range(2):
+            try:
+                scan_uid = yield from bp.scan(*args, **kwargs)
+                break
+            except FailedStatus:
+                if j == 0:
+                    print("Trigger or stage move failed, retrying")
+                    yield from bps.sleep(0.1)
+                else:
+                    raise RuntimeError("Something went really wrong")
+
         omega_list = db[scan_uid].table()[top_aligner_slow.gonio_o.name]
         d = np.pi / 180
 
@@ -59,8 +97,9 @@ def topview_plan():
         A_rot = np.matrix(
             [[np.cos(omega * d), np.sin(omega * d), 1] for omega in omega_list]
         )
-        b_rot = db[scan_uid].table(
-        )[top_aligner_slow.topcam.cv1.outputs.output9.name]
+        b_rot = db[scan_uid].table()[
+            top_aligner_slow.topcam.cv1.outputs.output9.name
+        ]
         p = (
             np.linalg.inv(A_rot.transpose() * A_rot)
             * A_rot.transpose()
@@ -75,8 +114,9 @@ def topview_plan():
 
     def inner_pseudo_fly_scan(*args, **kwargs):
         scan_uid = yield from bp.count(*args, **kwargs)
-        omegas = db[scan_uid].table(
-        )[top_aligner_fast.zebra.pos_capt.data.enc4.name][1]
+        omegas = db[scan_uid].table()[
+            top_aligner_fast.zebra.pos_capt.data.enc4.name
+        ][1]
 
         d = np.pi / 180
 
@@ -85,8 +125,9 @@ def topview_plan():
             [[np.cos(omega * d), np.sin(omega * d), 1] for omega in omegas]
         )
 
-        b_rot = db[scan_uid].table(
-        )[top_aligner_fast.topcam.out9_buffer.name][1]
+        b_rot = db[scan_uid].table()[top_aligner_fast.topcam.out9_buffer.name][
+            1
+        ]
         p = (
             np.linalg.inv(A_rot.transpose() * A_rot)
             * A_rot.transpose()
@@ -100,43 +141,42 @@ def topview_plan():
         )
 
         # face on calculation
-        '''
+
         A = np.matrix(
             [
                 [np.cos(2 * omega * d), np.sin(2 * omega * d), 1]
                 for omega in omegas
             ]
         )
-        '''
 
         b = db[scan_uid].table()[top_aligner_fast.topcam.out10_buffer.name][1]
-        '''
+
         p0 = (
             np.linalg.inv(A.transpose() * A)
             * A.transpose()
-            * np.matrix(b.to_numpy()).transpose()
+            * np.matrix(b).transpose()
         )
         min1 = (270 - 180 * np.arctan2(p0[0], p0[1]) / np.pi) / 2
         min2 = (-90 - 180 * np.arctan2(p0[0], p0[1]) / np.pi) / 2
         omega_min = [min1, min2][np.abs([min1, min2]).argmin()]
-        '''
-        print("DFT")
+
+        print(f"ONE FREQ / {omega_min}")
         ft = np.fft.fft(b)
         sample = 300
         zb = np.zeros(sample, dtype=np.complex_)
-        scale = len(zb)/len(ft)
-        zb[0:len(ft)//2] = ft[0:len(ft)//2]
-        zb[-(len(ft)//2 - 1):] = ft[len(ft)//2 + 1:]
-        ift = scale*np.fft.ifft(zb)
+        scale = len(zb) / len(ft)
+        zb[0: len(ft) // 2] = ft[0: len(ft) // 2]
+        zb[-(len(ft) // 2 - 1):] = ft[len(ft) // 2 + 1:]
+        ift = scale * np.fft.ifft(zb)
         omega_min = np.linspace(179.9, 0, sample)[ift.argmin()]
-        print(omega_min)
+        print(f"DFT / {omega_min}")
 
-        print("SPLINES")
         f_splines = interp1d(omegas, b)
         b_splines = f_splines(np.linspace(omegas[0], omegas[-1], sample))
-        omega_min = np.linspace(
-            omegas[0], omegas[-1], sample)[b_splines.argmin()]
-        print(omega_min)
+        omega_min = np.linspace(omegas[0], omegas[-1], sample)[
+            b_splines.argmin()
+        ]
+        print(f"SPLINES / {omega_min}")
 
         return delta_y, delta_z, omega_min
 
@@ -159,22 +199,36 @@ def topview_plan():
     ):
         return
 
-    yield from bps.mvr(gonio.py, delta_y)
-    yield from bps.mvr(gonio.pz, -delta_z)
-    '''
+    yield from mvr_with_retry(top_aligner_slow.gonio_py, delta_y)
+    # yield from bps.sleep(0.1)
+    yield from mvr_with_retry(top_aligner_slow.gonio_pz, -delta_z)
+
+    """
     # horizontal bump
     # scan_uid = yield from bp.count([topcam], 1)
-    #x = db[scan_uid].table()[f"{topcam.cv1.outputs.output8.name}"][1]
-    #delta_x = ((topcam.roi2.size.x.get() / 2) - x) / topcam.pix_per_um.get()
+    # x = db[scan_uid].table()[f"{topcam.cv1.outputs.output8.name}"][1]
+    # delta_x = ((topcam.roi2.size.x.get() / 2) - x) / topcam.pix_per_um.get()
     # yield from bps.mvr(gonio.gx, delta_x)
-    '''
+    """
 
     # finer rotation axis align, plus more in-focus face on omega determined
     # yield from bps.abs_set(topcam.cam_mode, "fine_face")
-    '''delta_y, delta_z, omega_min = yield from inner_rot_scan(
+    """delta_y, delta_z, omega_min = yield from inner_rot_scan(
         [topcam], gonio.o, 180, 0, 40
-    )'''
-    delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan([top_aligner_fast])
+    )"""
+    try:
+        delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan(
+            [top_aligner_fast]
+        )
+    except FailedStatus:
+        print("arming problem...trying again")
+        yield from bps.abs_set(
+            top_aligner_fast.zebra.pos_capt.arm.disarm, 1, wait=True
+        )
+        yield from bps.mv(top_aligner_fast.gonio_o, 180)
+        delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan(
+            [top_aligner_fast]
+        )
 
     # prevent large movements
     if (
@@ -184,6 +238,7 @@ def topview_plan():
     ):
         return
 
-    yield from bps.mvr(gonio.py, delta_y)
-    yield from bps.mvr(gonio.pz, -delta_z)
-    yield from bps.mv(gonio.o, omega_min)
+    yield from mvr_with_retry(top_aligner_fast.gonio_py, delta_y)
+    # yield from bps.sleep(0.1)
+    yield from mvr_with_retry(top_aligner_fast.gonio_pz, -delta_z)
+    yield from bps.mv(top_aligner_fast.gonio_o, omega_min)
