@@ -6,10 +6,15 @@ Created on Wed Nov  2 11:51:23 2022
 @author: dkreitler
 """
 from ophyd.areadetector.filestore_mixins import FileStoreTIFF
+from ophyd import Kind
 
 
 class TIFFPluginWithFileStore(TIFFPlugin, FileStoreTIFF):
     pass
+
+
+class EpicsMotorSPMG(EpicsMotor):
+    SPMG = Cpt(EpicsSignal, ".SPMG")
 
 
 class TopAlignCam(StandardProsilica):
@@ -22,8 +27,11 @@ class TopAlignCam(StandardProsilica):
     )
     cam_mode = Cpt(Signal, value=None, kind="config")
     pix_per_um = Cpt(Signal, value=0.164, doc="pixels per um")
-    out10_buffer = Cpt(EpicsSignalRO, "Out10:compress",
-                       doc="circular buffer for ADCompVision output10 (thresholding loop profile)")
+    out10_buffer = Cpt(
+        EpicsSignalRO,
+        "Out10:compress",
+        doc="circular buffer for ADCompVision output10 (thresholding loop profile)",
+    )
     out10_reset = Cpt(EpicsSignal, "Out10:compress.RES")
     out9_buffer = Cpt(EpicsSignalRO, "Out9:compress")
     out9_reset = Cpt(EpicsSignal, "Out9:compress.RES")
@@ -33,7 +41,7 @@ class TopAlignCam(StandardProsilica):
             *args,
             **kwargs,
         )
-        self.tiff.read_attrs = []
+        #self.tiff.read_attrs = []
         self.cv1.read_attrs = ["outputs"]
         self.cv1.outputs.read_attrs = [
             "output8",
@@ -43,6 +51,7 @@ class TopAlignCam(StandardProsilica):
         self.cam_mode.subscribe(self._update_stage_sigs, event_type="value")
 
     def _update_stage_sigs(self, *args, **kwargs):
+        self.tiff.stage_sigs.update([("enable", 0)])
         self.stage_sigs.clear()
         self.stage_sigs.update(
             [
@@ -86,7 +95,15 @@ class ZebraMXOr(Zebra):
 class TopAlignerBase(Device):
 
     topcam = Cpt(TopAlignCam, "XF:17IDB-ES:AMX{Cam:9}")
-    gonio_o = Cpt(EpicsMotor, "XF:17IDB-ES:AMX{Gon:1-Ax:O}Mtr")
+    gonio_o = Cpt(EpicsMotor, "XF:17IDB-ES:AMX{Gon:1-Ax:O}Mtr", timeout=6)
+    gonio_py = Cpt(
+        EpicsMotorSPMG, "XF:17IDB-ES:AMX{Gon:1-Ax:PY}Mtr", timeout=6
+    )
+    gonio_pz = Cpt(
+        EpicsMotorSPMG, "XF:17IDB-ES:AMX{Gon:1-Ax:PZ}Mtr", timeout=6
+    )
+    kill_py = Cpt(EpicsSignal, "XF:17IDB-ES:AMX{Gon:1-Ax:PY}Cmd:Kill-Cmd")
+    kill_pz = Cpt(EpicsSignal, "XF:17IDB-ES:AMX{Gon:1-Ax:PY}Cmd:Kill-Cmd")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -95,12 +112,12 @@ class TopAlignerBase(Device):
 
     def _configure_device(self, *args, **kwargs):
         raise NotImplementedError(
-            "Subclasses must implement custom device configuration")
+            "Subclasses must implement custom device configuration"
+        )
 
     def stage(self, *args, **kwargs):
         if type(self) == TopAlignerBase:
-            raise NotImplementedError(
-                "TopAlignerBase has no stage method")
+            raise NotImplementedError("TopAlignerBase has no stage method")
         super().stage(*args, **kwargs)
 
     def trigger(self):
@@ -108,8 +125,7 @@ class TopAlignerBase(Device):
 
     def unstage(self, *args, **kwargs):
         if type(self) == TopAlignerBase:
-            raise NotImplementedError(
-                "TopAlignerBase has no unstage method")
+            raise NotImplementedError("TopAlignerBase has no unstage method")
         super().unstage(*args, **kwargs)
 
 
@@ -121,34 +137,38 @@ class TopAlignerFast(TopAlignerBase):
         super().__init__(*args, **kwargs)
 
     def _configure_device(self, *args, **kwargs):
-        self.read_attrs = []
+        self.read_attrs = ["topcam", "zebra"]
         self.stage_sigs.clear()
         self.topcam.cam_mode.set("fine_face")
+
         self.stage_sigs.update(
             [
-                ("zebra.pos_capt.source", "Enc4"),
-                ("zebra.pos_capt.direction", 1),
-                ("zebra.armsel", 0),
-                ("zebra.pos_capt.gate.start", 179.9),
-                ("zebra.pos_capt.gate.width", 4.5),
-                ("zebra.pos_capt.gate.step", 9),
-                ("zebra.pos_capt.gate.num_gates", 20),
-                ("zebra.pos_capt.pulse.start", 0),
-                ("zebra.pos_capt.pulse.width", 4),
-                ("zebra.pos_capt.pulse.step", 5),
-                ("zebra.pos_capt.pulse.delay", 0),
-                ("zebra.pos_capt.pulse.max_pulses", 1),
-                ("zebra.or3", 1),
-                ("zebra.or3loc", 30),
                 ("topcam.cam.trigger_mode", 1),
                 ("topcam.cam.image_mode", 2),
                 ("topcam.cam.acquire", 1),
+                ("gonio_o.velocity", 90),  # slow down to get picture taken
             ]
         )
-
-        self.read_attrs = ["topcam.out10_buffer",
-                           "topcam.out9_buffer",
-                           "zebra.pos_capt.data.enc4"]
+        self.zebra.stage_sigs.update(
+            [
+                ("pos_capt.source", "Enc4"),
+                ("pos_capt.direction", 1),
+                ("armsel", 0),
+                ("pos_capt.gate.start", 179.5),
+                ("pos_capt.gate.width", 4.5),
+                ("pos_capt.gate.step", 9),
+                ("pos_capt.gate.num_gates", 20),
+                ("pos_capt.pulse.start", 0),
+                ("pos_capt.pulse.width", 4),
+                ("pos_capt.pulse.step", 5),
+                ("pos_capt.pulse.delay", 0),
+                ("pos_capt.pulse.max_pulses", 1),
+                ("or3", 1),
+                ("or3loc", 30),
+            ]
+        )
+        self.topcam.read_attrs = ["out9_buffer", "out10_buffer"]
+        self.zebra.read_attrs = ["pos_capt.data.enc4"]
 
     def stage(self, *args, **kwargs):
         super().stage(*args, **kwargs)
@@ -158,36 +178,43 @@ class TopAlignerFast(TopAlignerBase):
                 return True
             else:
                 return False
+
         callback_armed_status = SubscriptionStatus(
-            self.zebra.pos_capt.arm.output, callback_armed, run=False)
-        self.zebra.pos_capt.arm.arm.set(1, settle_time=0.5)
-        callback_armed_status.wait(timeout=2)
+            self.zebra.pos_capt.arm.output,
+            callback_armed,
+            run=False,
+            settle_time=0.2,
+        )
+        self.zebra.pos_capt.arm.arm.set(1)
+        callback_armed_status.wait(timeout=3)
 
     def unstage(self, **kwargs):
         super().unstage(**kwargs)
-        self.zebra.pos_capt.arm.disarm.set(1)
+        # self.zebra.pos_capt.arm.disarm.set(1)
 
     def trigger(self):
-
         def callback_unarmed(value, old_value, **kwargs):
             if old_value == 1 and value == 0:
                 return True
             else:
                 return False
+
         callback_unarmed_status = SubscriptionStatus(
-            self.zebra.pos_capt.arm.output, callback_unarmed, run=False)
+            self.zebra.pos_capt.arm.output,
+            callback_unarmed,
+            run=False,
+            timeout=6,
+        )
         self.gonio_o.set(0)
         return callback_unarmed_status
 
 
 class TopAlignerSlow(TopAlignerBase):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     def _configure_device(self, *args, **kwargs):
 
-        self.read_attrs = []
         self.stage_sigs.clear()
         self.stage_sigs.update(
             [
@@ -197,9 +224,11 @@ class TopAlignerSlow(TopAlignerBase):
             ]
         )
         self.topcam.cam_mode.set("coarse_align")
-        self.read_attrs = ["topcam.cv1.outputs.output9",
-                           "topcam.cv1.outputs.output10",
-                           "gonio_o"]
+        self.read_attrs = [
+            "topcam.cv1.outputs.output9",
+            "topcam.cv1.outputs.output10",
+            "gonio_o",
+        ]
 
     def trigger(self):
         return self.topcam.trigger()
@@ -208,5 +237,5 @@ class TopAlignerSlow(TopAlignerBase):
         return self.topcam.read()
 
 
-top_aligner_fast = TopAlignerFast(name='top_aligner_fast')
-top_aligner_slow = TopAlignerSlow(name='top_aligner')
+top_aligner_fast = TopAlignerFast(name="top_aligner_fast")
+top_aligner_slow = TopAlignerSlow(name="top_aligner")
