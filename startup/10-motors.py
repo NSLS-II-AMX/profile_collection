@@ -1,7 +1,6 @@
-print(f"Loading {__file__}")
-
-from ophyd import Device, Component as Cpt, EpicsMotor, EpicsSignalRO
 from ophyd import PVPositionerPC
+from ophyd import Device, Component as Cpt, EpicsMotor, EpicsSignalRO
+print(f"Loading {__file__}")
 
 
 class XYMotor(Device):
@@ -157,8 +156,8 @@ hm = XYZMotor("XF:17IDB-ES:AMX{Mir:1", name="hm")
 # Beam Stop
 bs = BeamStop("XF:17IDB-ES:AMX{BS:1", name="bs")
 
-## BCU Attenuator
+# BCU Attenuator
 atten = Attenuator("XF:17IDB-OP:AMX{Attn:BCU", name="atten")
 
-## Collimator
+# Collimator
 colli = Collimator("XF:17IDB-ES:AMX{Colli:1", name="colli")
