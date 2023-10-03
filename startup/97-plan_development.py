@@ -181,7 +181,10 @@ def pin_focus_scan(detector, axis):
 
 
 def rot_pin_align(
-    rot_aligner=rot_aligner, rot_motor=gonio.o, long_motor=gonio.gx
+    rot_aligner=rot_aligner,
+    rot_motor=gonio.o,
+    long_motor=gonio.gx,
+    start=(5155, -198, 240)
 ):
     """A bluesky plan for aligning a rotation alignment pin and calculating
     the (horizontal) rotation axis. The plan performs several increasingly
@@ -198,6 +201,8 @@ def rot_pin_align(
     long_motor : ophyd EpicsMotor
         Longitudinal motor for horizontal translations along rotation axis.
         The default is gonio.gx.
+    start : tuple
+        x, y, z position of last good rotation axis
 
     Returns
     -------
