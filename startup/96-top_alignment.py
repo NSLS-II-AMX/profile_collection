@@ -23,7 +23,7 @@ class TopAlignCam(StandardProsilica):
     tiff = Cpt(
         TIFFPluginWithFileStore,
         "TIFF1:",
-        write_path_template="/nsls2/data/staff/dkreitler/softioc-amx_data/topcam",
+        write_path_template="/nsls2/data/amx/legacy/topcam",
     )
     cam_mode = Cpt(Signal, value=None, kind="config")
     pix_per_um = Cpt(Signal, value=0.164, doc="pixels per um")
@@ -60,7 +60,7 @@ class TopAlignCam(StandardProsilica):
                 ("cv1.inputs.input2", 3),
                 ("cv1.inputs.input3", 1),
                 ("cv1.inputs.input4", 3),
-                ("cv1.inputs.input5", 6),
+                ("cv1.inputs.input5", 13),
                 ("cv1.inputs.input6", 1),
                 ("trans1.nd_array_port", "PROC1"),
                 ("tiff.nd_array_port", "CV1"),
