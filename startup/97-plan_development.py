@@ -173,15 +173,18 @@ def pin_focus_scan(detector, axis):
     optimally focused position with canny edge detection. The geometry assumes
     that pin tip is coming from the right, thus argmin used for OpenCV
     convention. Pin tip coming from left would require argmax."""
-    yield from bps.abs_set(detector.cam_mode, "edge_detection")
+    yield from bps.abs_set(detector.cam_mode, "laplacian")
     scan_uid = yield from bp.rel_scan([detector], axis, -400, 400, 60)
-    left_pixels = db[scan_uid].table()[detector.cv1.outputs.output7.name]
-    best_cam_z = db[scan_uid].table()[axis.name][left_pixels.argmin()]
+    left_pixels = db[scan_uid].table()[detector.cv1.outputs.output1.name]
+    best_cam_z = db[scan_uid].table()[axis.name][left_pixels.argmax()]
     return best_cam_z
 
 
 def rot_pin_align(
-    rot_aligner=rot_aligner, rot_motor=gonio.o, long_motor=gonio.gx
+    rot_aligner=rot_aligner,
+    rot_motor=gonio.o,
+    long_motor=gonio.gx,
+    start=(5155, -198, 240)
 ):
     """A bluesky plan for aligning a rotation alignment pin and calculating
     the (horizontal) rotation axis. The plan performs several increasingly
@@ -198,6 +201,8 @@ def rot_pin_align(
     long_motor : ophyd EpicsMotor
         Longitudinal motor for horizontal translations along rotation axis.
         The default is gonio.gx.
+    start : tuple
+        x, y, z position of last good rotation axis
 
     Returns
     -------
@@ -206,9 +211,9 @@ def rot_pin_align(
     """
 
     # move to last good gonio xyz values
-    yield from bps.mv(rot_aligner.gc_positioner.real_y, -198)
-    yield from bps.mv(rot_aligner.gc_positioner.real_z, 240)
-    yield from bps.mv(long_motor, 5155)
+    yield from bps.mv(rot_aligner.gc_positioner.real_y, start[1])
+    yield from bps.mv(rot_aligner.gc_positioner.real_z, start[2])
+    yield from bps.mv(long_motor, start[0])
 
     # find optimal omega for sheath opening
     omega_scan_uid = yield from bp.scan(
@@ -240,7 +245,7 @@ def rot_pin_align(
     yield from bps.mvr(rot_aligner.gc_positioner.real_z, -delta_z)
 
     # move closer to pin tip for new measurement
-    yield from bps.mvr(gonio.gx, -70)
+    # yield from bps.mvr(gonio.gx, -70)
 
     # second alignment
     delta_y, delta_z, rot_axis_pix = yield from measure_rot_axis(
@@ -269,7 +274,9 @@ def rot_pin_align(
         )
         / (rot_aligner.cam_hi.pix_per_um.get())
     )  # scale to account for ROI binning
-    yield from bps.mvr(gonio.gx, delta_x)
+
+    print(delta_x*rot_aligner.cam_hi.pix_per_um.get())
+    # yield from bps.mvr(gonio.gx, delta_x)
 
     # third alignment, do not attempt to move, just measure
     _, _, rot_axis_pix = yield from measure_rot_axis(

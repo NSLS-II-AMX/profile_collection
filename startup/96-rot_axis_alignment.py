@@ -1,18 +1,17 @@
-print(f"Loading {__file__}")
-
-from ophyd import PseudoPositioner, PseudoSingle, Staged
-from ophyd.pseudopos import pseudo_position_argument, real_position_argument
+from ophyd.signal import DerivedSignal
+from ophyd.areadetector.base import ADComponent as ADCpt
+from ophyd.areadetector.base import DDC_EpicsSignal, DDC_EpicsSignalRO
+from ophyd.areadetector.plugins import PluginBase, register_plugin
+from ophyd import Component as Cpt
 from ophyd import (
     SingleTrigger,
     ProsilicaDetector,
     ColorConvPlugin,
     Device,
 )
-from ophyd import Component as Cpt
-from ophyd.areadetector.plugins import PluginBase, register_plugin
-from ophyd.areadetector.base import DDC_EpicsSignal, DDC_EpicsSignalRO
-from ophyd.areadetector.base import ADComponent as ADCpt
-from ophyd.signal import DerivedSignal
+from ophyd.pseudopos import pseudo_position_argument, real_position_argument
+from ophyd import PseudoPositioner, PseudoSingle, Staged
+print(f"Loading {__file__}")
 
 
 class GonioCameraPositioner(PseudoPositioner):
@@ -257,12 +256,34 @@ class RotAlignHighMag(StandardProsilica):
                     ("cv1.func_sets.func_set2", "None"),
                     ("cv1.func_sets.func_set3", "None"),
                     ("cv1.inputs.input1", 35),
-                    ("cv1.inputs.input2", 5),
+                    ("cv1.inputs.input2", 8),
                     ("cv1.inputs.input3", 13),
                     ("cv1.inputs.input4", 5),
-                    ("roi4.min_xyz.min_x", 672),
+                    ("roi4.min_xyz.min_x", 812),
                     ("roi4.min_xyz.min_y", 0),
-                    ("roi4.size.x", 1264),
+                    ("roi4.size.x", 1114),
+                    ("roi4.size.y", 1246),
+                ]
+            )
+
+        if self.cam_mode.get() == "laplacian":
+            self.stage_sigs.update(
+                [
+                    ("cam.acquire_time", 0.15),
+                    ("cam.acquire_period", 0.15),
+                    ("cam.trigger_mode", 5),
+                    ("cv1.enable", 1),
+                    ("cv1.nd_array_port", "ROI1"),
+                    ("cv1.func_sets.func_set1", "Laplacian"),
+                    ("cv1.func_sets.func_set2", "None"),
+                    ("cv1.func_sets.func_set3", "None"),
+                    ("cv1.inputs.input1", 5),
+                    ("cv1.inputs.input2", 5),
+                    ("cv1.inputs.input3", 3),
+                    ("cv1.inputs.input4", 5),
+                    ("roi4.min_xyz.min_x", 812),
+                    ("roi4.min_xyz.min_y", 0),
+                    ("roi4.size.x", 1114),
                     ("roi4.size.y", 1246),
                 ]
             )
@@ -317,8 +338,8 @@ class RotAlignHighMag(StandardProsilica):
                     ("cv1.func_sets.func_set1", "None"),
                     ("cv1.func_sets.func_set2", "None"),
                     ("cv1.func_sets.func_set3", "User Function"),
-                    ("cv1.inputs.input1", 33),
-                    ("cv1.inputs.input2", 8),
+                    ("cv1.inputs.input1", 39),
+                    ("cv1.inputs.input2", 12),
                     ("cv1.inputs.input3", 7),
                     ("cv1.inputs.input4", 5),
                 ]
