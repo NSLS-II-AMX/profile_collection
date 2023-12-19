@@ -183,7 +183,7 @@ class TopAlignerFast(TopAlignerBase):
             self.zebra.pos_capt.arm.output,
             callback_armed,
             run=False,
-            settle_time=0.2,
+            settle_time=0.5,
         )
         self.zebra.pos_capt.arm.arm.set(1)
         callback_armed_status.wait(timeout=3)
