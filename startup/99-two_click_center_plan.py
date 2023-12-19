@@ -61,3 +61,9 @@ def loop_detection_plan():
     yield from bps.mvr(gonio.pz, -real_z)
 
     yield from bps.mvr(gonio.o, -90)
+
+
+def two_click_center():
+    yield from bps.abs_set(gov_rbt, "SA", wait=True)
+    yield from topview_plan()
+    yield from loop_detection_plan()
