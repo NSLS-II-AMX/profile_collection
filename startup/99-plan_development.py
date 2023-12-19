@@ -189,6 +189,7 @@ def topview_plan():
     #    return
 
     # coarse rotation axis align
+
     delta_y, delta_z = yield from inner_rot_scan(
         [top_aligner_slow.topcam], top_aligner_slow.gonio_o, 0, 180, 4
     )
@@ -216,6 +217,7 @@ def topview_plan():
     """delta_y, delta_z, omega_min = yield from inner_rot_scan(
         [topcam], gonio.o, 180, 0, 40
     )"""
+
     try:
         delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan(
             [top_aligner_fast]
