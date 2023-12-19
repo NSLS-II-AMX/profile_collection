@@ -225,6 +225,7 @@ class TopAlignerSlow(TopAlignerBase):
         )
         self.topcam.cam_mode.set("coarse_align")
         self.read_attrs = [
+            "topcam.cv1.outputs.output8",
             "topcam.cv1.outputs.output9",
             "topcam.cv1.outputs.output10",
             "gonio_o",
