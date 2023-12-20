@@ -147,11 +147,12 @@ class TwoClickLowMag(StandardProsilica):
 
 class WorkPositions(Device):
     gx = Cpt(EpicsSignal, '{Gov:Robot-Dev:gx}Pos:Work-Pos')
-    gpy = Cpt(EpicsSignal, '{Gov:Robot-Dev:gpy}Pos:Work-Pos')
-    gpz = Cpt(EpicsSignal, '{Gov:Robot-Dev:gpz}Pos:Work-Pos')
+    py = Cpt(EpicsSignal, '{Gov:Robot-Dev:gpy}Pos:Work-Pos')
+    pz = Cpt(EpicsSignal, '{Gov:Robot-Dev:gpz}Pos:Work-Pos')
+    o = Cpt(EpicsSignal, '{Gov:Robot-Dev:go}Pos:Work-Pos')
 
 
-work_pos = WorkPositions("XF:17IDB-ES:", name="work_pos")
+work_pos = WorkPositions("XF:17IDB-ES:AMX", name="work_pos")
 
 two_click_low = TwoClickLowMag("XF:17IDB-ES:AMX{Cam:6}", name="two_click_low")
 loop_detector = LoopDetector(name="loop_detector")

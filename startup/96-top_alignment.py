@@ -85,6 +85,11 @@ class TopAlignCam(StandardProsilica):
         self._update_stage_sigs(*args, **kwargs)
         super().stage(*args, **kwargs)
 
+    def trigger(self):
+        status = super().trigger()
+        status.wait(6)
+        return status
+
 
 class ZebraMXOr(Zebra):
     or3 = Cpt(EpicsSignal, "OR3_ENA:B3")
@@ -132,6 +137,9 @@ class TopAlignerBase(Device):
 class TopAlignerFast(TopAlignerBase):
 
     zebra = Cpt(ZebraMXOr, "XF:17IDB-ES:AMX{Zeb:2}:")
+    target_gov_state = Cpt(
+        Signal, value=None, doc="target governor state used to trigger device"
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -154,7 +162,7 @@ class TopAlignerFast(TopAlignerBase):
                 ("pos_capt.source", "Enc4"),
                 ("pos_capt.direction", 1),
                 ("armsel", 0),
-                ("pos_capt.gate.start", 179.5),
+                ("pos_capt.gate.start", 0.1),  # very important
                 ("pos_capt.gate.width", 4.5),
                 ("pos_capt.gate.step", 9),
                 ("pos_capt.gate.num_gates", 20),
@@ -205,8 +213,16 @@ class TopAlignerFast(TopAlignerBase):
             run=False,
             timeout=6,
         )
-        self.gonio_o.set(0)
-        return callback_unarmed_status
+
+        if self.target_gov_state.get() in gov_rbt.reachable.get():
+            gov_rbt.set(self.target_gov_state.get(), wait=True)
+            # self.gonio_o.set(0)
+            return callback_unarmed_status
+
+        else:
+            raise Exception(
+                f'{self.target_gov_state.get()} is wrong governor state for transition'
+            )
 
 
 class TopAlignerSlow(TopAlignerBase):
@@ -238,5 +254,6 @@ class TopAlignerSlow(TopAlignerBase):
         return self.topcam.read()
 
 
+topcam = TopAlignCam("XF:17IDB-ES:AMX{Cam:9}", name="topcam")
 top_aligner_fast = TopAlignerFast(name="top_aligner_fast")
 top_aligner_slow = TopAlignerSlow(name="top_aligner")
