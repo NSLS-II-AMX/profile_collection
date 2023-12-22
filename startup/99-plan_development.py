@@ -255,15 +255,25 @@ def topview_optimized():
 
         return delta_y, delta_z, omega_min
 
-    # horizontal bump
+    # horizontal bump calculation, don't move just yet to avoid disturbing gov
     yield from bps.abs_set(top_aligner_slow.topcam.cam_mode, 'coarse_align')
     scan_uid = yield from bp.count([top_aligner_slow.topcam], 1)
     x = db[scan_uid].table()[top_aligner_slow.topcam.cv1.outputs.output8.name][1]
     delta_x = ((topcam.roi2.size.x.get() / 2) -
                x) / topcam.pix_per_um.get()
 
+    # update work positions
+    yield from bps.abs_set(work_pos.gx, gonio.gx.user_readback.get(), wait=True)
+    yield from bps.abs_set(
+        work_pos.py, top_aligner_fast.gonio_py.user_readback.get(), wait=True
+    )
+    yield from bps.abs_set(
+        work_pos.pz, top_aligner_fast.gonio_pz.user_readback.get(), wait=True
+    )
+    yield from bps.abs_set(work_pos.o, 180, wait=True)
+
     # SE -> TA
-    yield from bps.abs_set(top_aligner_fast.target_gov_state, "TA")
+    yield from bps.abs_set(top_aligner_fast.target_gov_state, "TA", wait=True)
 
     try:
         delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan(
@@ -279,6 +289,38 @@ def topview_optimized():
         delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan(
             [top_aligner_fast]
         )
+
     yield from bps.mvr(gonio.gx, delta_x)
+    yield from mvr_with_retry(top_aligner_fast.gonio_py, delta_y)
+    yield from mvr_with_retry(top_aligner_fast.gonio_pz, -delta_z)
+
+    # update work positions
+    yield from bps.abs_set(work_pos.gx, gonio.gx.user_readback.get(), wait=True)
+    yield from bps.abs_set(
+        work_pos.py, top_aligner_fast.gonio_py.user_readback.get(), wait=True
+    )
+    yield from bps.abs_set(
+        work_pos.pz, top_aligner_fast.gonio_pz.user_readback.get(), wait=True
+    )
+    yield from bps.abs_set(work_pos.o, 0, wait=True)
+
+    # TA -> SA
+    yield from bps.abs_set(top_aligner_fast.target_gov_state, "SA", wait=True)
+
+    try:
+        delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan(
+            [top_aligner_fast]
+        )
+    except FailedStatus:
+        print("arming problem...trying again")
+        yield from bps.abs_set(
+            top_aligner_fast.zebra.pos_capt.arm.disarm, 1, wait=True
+        )
+        yield from bps.sleep(0.5)
+        yield from bps.mv(top_aligner_fast.gonio_o, 0)
+        delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan(
+            [top_aligner_fast]
+        )
+
     yield from mvr_with_retry(top_aligner_fast.gonio_py, delta_y)
     yield from mvr_with_retry(top_aligner_fast.gonio_pz, -delta_z)

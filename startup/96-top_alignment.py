@@ -143,6 +143,9 @@ class TopAlignerFast(TopAlignerBase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.target_gov_state.subscribe(
+            self._update_stage_sigs, event_type="value"
+        )
 
     def _configure_device(self, *args, **kwargs):
         self.read_attrs = ["topcam", "zebra"]
@@ -162,7 +165,7 @@ class TopAlignerFast(TopAlignerBase):
                 ("pos_capt.source", "Enc4"),
                 ("pos_capt.direction", 1),
                 ("armsel", 0),
-                ("pos_capt.gate.start", 0.1),  # very important
+                ("pos_capt.gate.start", 0.5),  # very important
                 ("pos_capt.gate.width", 4.5),
                 ("pos_capt.gate.step", 9),
                 ("pos_capt.gate.num_gates", 20),
@@ -178,7 +181,29 @@ class TopAlignerFast(TopAlignerBase):
         self.topcam.read_attrs = ["out9_buffer", "out10_buffer"]
         self.zebra.read_attrs = ["pos_capt.data.enc4"]
 
+    def _update_stage_sigs(self, *args, **kwargs):
+
+        if self.target_gov_state.get() == "TA":
+            self.zebra.stage_sigs.update(
+                [
+                    ("pos_capt.direction", 0),  # positive
+                    ("pos_capt.gate.start", 0.1),
+                ]
+            )
+
+        elif self.target_gov_state.get() == "SA":
+            self.zebra.stage_sigs.update(
+                [
+                    ("pos_capt.direction", 1),  # negative
+                    ("pos_capt.gate.start", 180),
+                ]
+            )
+
+        else:
+            raise Exception("Target gov state not implemented!")
+
     def stage(self, *args, **kwargs):
+        self._update_stage_sigs()
         super().stage(*args, **kwargs)
 
         def callback_armed(value, old_value, **kwargs):

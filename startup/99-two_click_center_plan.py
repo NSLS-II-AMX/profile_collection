@@ -65,6 +65,7 @@ def loop_detection_plan():
 
 
 def two_click_center():
+    '''
     yield from bps.abs_set(gov_rbt, "TA", wait=True)
     yield from topview_plan()
 
@@ -74,4 +75,6 @@ def two_click_center():
     yield from bps.abs_set(work_pos.o, gonio.o.user_readback.get())
 
     yield from bps.abs_set(gov_rbt, "SA", wait=True)
+    '''
+    yield from topview_optimized()
     yield from loop_detection_plan()
