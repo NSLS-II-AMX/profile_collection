@@ -322,5 +322,6 @@ def topview_optimized():
             [top_aligner_fast]
         )
 
+    yield from mv_with_retry(top_aligner_fast.gonio_o, omega_min)
     yield from mvr_with_retry(top_aligner_fast.gonio_py, delta_y)
     yield from mvr_with_retry(top_aligner_fast.gonio_pz, -delta_z)
