@@ -274,6 +274,7 @@ def topview_optimized():
 
     # SE -> TA
     yield from bps.abs_set(top_aligner_fast.target_gov_state, "TA", wait=True)
+    yield from bps.abs_set(top_aligner_fast.topcam.cam_mode, "coarse_align")
 
     try:
         delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan(
@@ -306,6 +307,7 @@ def topview_optimized():
 
     # TA -> SA
     yield from bps.abs_set(top_aligner_fast.target_gov_state, "SA", wait=True)
+    yield from bps.abs_set(top_aligner_fast.topcam.cam_mode, "fine_face")
 
     try:
         delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan(
