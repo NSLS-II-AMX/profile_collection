@@ -77,6 +77,8 @@ class TwoClickLowMag(StandardProsilica):
     cv1 = Cpt(CVPlugin, "CV1:")
     cam_mode = Cpt(Signal, value=None, kind="config")
     pix_per_um = Cpt(Signal, value=1, kind="config")
+    x_min = Cpt(Signal, value=0, doc="min horizontal pixel", kind="config")
+    x_max = Cpt(Signal, value=640, doc="max horizontal pixel", kind="config")
 
     jpeg = Cpt(
         JPEGPluginWithFileStore,
@@ -98,7 +100,7 @@ class TwoClickLowMag(StandardProsilica):
             [
                 ("cam.acquire", 0),
                 ("cam.image_mode", 1),
-                ("cam.acquire_time", 0.0025),
+                ("cam.acquire_time", 0.0022),
                 ("cam.acquire_period", 1),
             ]
         )
@@ -136,7 +138,19 @@ class TwoClickLowMag(StandardProsilica):
         elif self.cam_mode.get() == "two_click":
             self.stage_sigs.update(
                 [
-                    ("jpeg.nd_array_port", "ROI2")
+                    ("jpeg.nd_array_port", "ROI2"),
+                    ("cv1.nd_array_port", "ROI2"),
+                    ("cv1.enable", 1),
+                    ("cv1.func_sets.func_set1", "Threshold"),
+                    ("cv1.func_sets.func_set2", "None"),
+                    ("cv1.func_sets.func_set3", "None"),
+                    ("cv1.inputs.input1", 1),
+                    # x_min; update in plan
+                    ("cv1.inputs.input2", self.x_min.get()),
+                    # x_max; update in plan
+                    ("cv1.inputs.input3", self.x_max.get()),
+                    ("cv1.inputs.input4", 0),  # y_min
+                    ("cv1.inputs.input5", 512)  # y_max
                 ]
             )
 
