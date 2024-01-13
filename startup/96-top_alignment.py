@@ -196,6 +196,7 @@ class TopAlignerFast(TopAlignerBase):
                 [
                     ("pos_capt.direction", 1),  # negative
                     ("pos_capt.gate.start", 180),
+
                 ]
             )
 
@@ -204,13 +205,33 @@ class TopAlignerFast(TopAlignerBase):
 
     def stage(self, *args, **kwargs):
         self._update_stage_sigs()
-        super().stage(*args, **kwargs)
 
         def callback_armed(value, old_value, **kwargs):
             if old_value == 0 and value == 1:
                 return True
             else:
                 return False
+
+        def callback_gov_status(value, old_value, **kwargs):
+            if (old_value == 1 and value == 0):
+                return True
+            elif (old_value == 0 and value == 0):
+                return True
+            else:
+                return False
+
+        if gov_rbt.done.get() == 1:
+            print('waiting for governor transition to complete')
+            gov_status = SubscriptionStatus(
+                gov_rbt.done,
+                callback_gov_status,
+                run=True,
+                timeout=10,
+            )
+            gov_status.wait()
+            print('governor transition complete')
+
+        super().stage(*args, **kwargs)
 
         callback_armed_status = SubscriptionStatus(
             self.zebra.pos_capt.arm.output,
@@ -245,7 +266,7 @@ class TopAlignerFast(TopAlignerBase):
             return callback_unarmed_status
 
         else:
-            raise Exception(
+            raise FailedStatus(
                 f'{self.target_gov_state.get()} is wrong governor state for transition'
             )
 

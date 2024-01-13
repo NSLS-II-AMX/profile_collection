@@ -10,6 +10,7 @@ from enum import Enum
 from scipy.interpolate import interp1d
 from bluesky.utils import FailedStatus
 from bluesky.preprocessors import relative_set_decorator
+from ophyd.status import WaitTimeoutError
 
 
 def retry_move(func):
@@ -263,7 +264,7 @@ def topview_optimized():
                x) / topcam.pix_per_um.get()
 
     # update work positions
-    yield from bps.abs_set(work_pos.gx, gonio.gx.user_readback.get(), wait=True)
+    yield from bps.abs_set(work_pos.gx, gonio.gx.user_readback.get() + delta_x, wait=True)
     yield from bps.abs_set(
         work_pos.py, top_aligner_fast.gonio_py.user_readback.get(), wait=True
     )
@@ -280,18 +281,18 @@ def topview_optimized():
         delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan(
             [top_aligner_fast]
         )
-    except FailedStatus:
-        print("arming problem...trying again")
-        yield from bps.abs_set(
-            top_aligner_fast.zebra.pos_capt.arm.disarm, 1, wait=True
-        )
-        yield from bps.sleep(0.5)
-        yield from bps.mv(top_aligner_fast.gonio_o, 0)
+    except (FailedStatus, WaitTimeoutError) as error:
+
+        print("arming problem during coarse alignment...trying again")
+        yield from bps.sleep(5)
+        yield from bps.abs_set(gov_rbt, 'SE', wait=True)
+        yield from bps.abs_set(top_aligner_fast.zebra.reset, 1, wait=True)
+        yield from bps.sleep(5)
+
         delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan(
             [top_aligner_fast]
         )
 
-    yield from bps.mvr(gonio.gx, delta_x)
     yield from mvr_with_retry(top_aligner_fast.gonio_py, delta_y)
     yield from mvr_with_retry(top_aligner_fast.gonio_pz, -delta_z)
 
@@ -313,13 +314,15 @@ def topview_optimized():
         delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan(
             [top_aligner_fast]
         )
-    except FailedStatus:
-        print("arming problem...trying again")
-        yield from bps.abs_set(
-            top_aligner_fast.zebra.pos_capt.arm.disarm, 1, wait=True
-        )
-        yield from bps.sleep(0.5)
-        yield from bps.mv(top_aligner_fast.gonio_o, 0)
+    except (FailedStatus, WaitTimeoutError) as error:
+        print("arming problem during fine alignment...trying again")
+        yield from bps.sleep(5)
+        yield from bps.abs_set(work_pos.o, 180, wait=True)
+        yield from bps.abs_set(gov_rbt, 'TA', wait=True)
+        yield from bps.abs_set(top_aligner_fast.zebra.reset, 1, wait=True)
+        yield from bps.abs_set(work_pos.o, 0, wait=True)
+        yield from bps.sleep(5)
+
         delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan(
             [top_aligner_fast]
         )
