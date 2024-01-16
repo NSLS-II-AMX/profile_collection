@@ -82,12 +82,15 @@ class TopAlignCam(StandardProsilica):
             )
 
     def stage(self, *args, **kwargs):
-        self._update_stage_sigs(*args, **kwargs)
+        #self._update_stage_sigs(*args, **kwargs)
         super().stage(*args, **kwargs)
 
     def trigger(self):
-        status = super().trigger()
-        status.wait(6)
+        try:
+            status = super().trigger()
+            status.wait(6)
+        except AttributeError:
+            raise FailedStatus
         return status
 
 
@@ -95,6 +98,11 @@ class ZebraMXOr(Zebra):
     or3 = Cpt(EpicsSignal, "OR3_ENA:B3")
     or3loc = Cpt(EpicsSignal, "OR3_INP4")
     armsel = Cpt(EpicsSignal, "PC_ARM_SEL")
+
+
+class GovernorError(Exception):
+    def __init__(self, message):
+        super().__init__(self, message)
 
 
 class TopAlignerBase(Device):
@@ -123,7 +131,7 @@ class TopAlignerBase(Device):
     def stage(self, *args, **kwargs):
         if type(self) == TopAlignerBase:
             raise NotImplementedError("TopAlignerBase has no stage method")
-        super().stage(*args, **kwargs)
+        return super().stage(*args, **kwargs)
 
     def trigger(self):
         raise NotImplementedError("Subclasses must implement custom trigger")
@@ -150,8 +158,6 @@ class TopAlignerFast(TopAlignerBase):
     def _configure_device(self, *args, **kwargs):
         self.read_attrs = ["topcam", "zebra"]
         self.stage_sigs.clear()
-        self.topcam.cam_mode.set("fine_face")
-
         self.stage_sigs.update(
             [
                 ("topcam.cam.trigger_mode", 1),
@@ -204,34 +210,63 @@ class TopAlignerFast(TopAlignerBase):
             raise Exception("Target gov state not implemented!")
 
     def stage(self, *args, **kwargs):
-        self._update_stage_sigs()
+
+        if gov_rbt.state.get() == 'M':
+            raise GovernorError("Governor busy or in M during staging attempt")
+
+        # Resolve any stage_sigs keys given as strings: 'a.b' -> self.a.b
+        stage_sigs = OrderedDict()
+        for k, v in self.stage_sigs.items():
+            if isinstance(k, str):
+                # Device.__getattr__ handles nested attr lookup
+                stage_sigs[getattr(self, k)] = v
+            else:
+                stage_sigs[k] = v
+
+        # Read current values, to be restored by unstage()
+        original_vals = {sig: sig.get() for sig in stage_sigs}
+
+        # We will add signals and values from original_vals to
+        # self._original_vals one at a time so that
+        # we can undo our partial work in the event of an error.
+
+        # Apply settings.
+        devices_staged = []
+        try:
+            for sig, val in stage_sigs.items():
+                self.log.debug(
+                    "Setting %s to %r (original value: %r)",
+                    sig.name,
+                    val,
+                    original_vals[sig],
+                )
+                sig.set(val).wait(10)
+                # It worked -- now add it to this list of sigs to unstage.
+                self._original_vals[sig] = original_vals[sig]
+            devices_staged.append(self)
+
+            # Call stage() on child devices.
+            for attr in self._sub_devices:
+                device = getattr(self, attr)
+                if hasattr(device, "stage"):
+                    device.stage()
+                    devices_staged.append(device)
+        except Exception:
+            self.log.debug(
+                "An exception was raised while staging %s or "
+                "one of its children. Attempting to restore "
+                "original settings before re-raising the "
+                "exception.",
+                self.name,
+            )
+            self.unstage()
+            raise
 
         def callback_armed(value, old_value, **kwargs):
             if old_value == 0 and value == 1:
                 return True
             else:
                 return False
-
-        def callback_gov_status(value, old_value, **kwargs):
-            if (old_value == 1 and value == 0):
-                return True
-            elif (old_value == 0 and value == 0):
-                return True
-            else:
-                return False
-
-        if gov_rbt.done.get() == 1:
-            print('waiting for governor transition to complete')
-            gov_status = SubscriptionStatus(
-                gov_rbt.done,
-                callback_gov_status,
-                run=True,
-                timeout=10,
-            )
-            gov_status.wait()
-            print('governor transition complete')
-
-        super().stage(*args, **kwargs)
 
         callback_armed_status = SubscriptionStatus(
             self.zebra.pos_capt.arm.output,
@@ -240,13 +275,15 @@ class TopAlignerFast(TopAlignerBase):
             settle_time=0.5,
         )
         self.zebra.pos_capt.arm.arm.set(1)
-        callback_armed_status.wait(timeout=3)
+        callback_armed_status.wait(timeout=6)
+        return devices_staged
 
     def unstage(self, **kwargs):
         super().unstage(**kwargs)
-        # self.zebra.pos_capt.arm.disarm.set(1)
 
     def trigger(self):
+        print('top aligner triggered')
+
         def callback_unarmed(value, old_value, **kwargs):
             if old_value == 1 and value == 0:
                 return True
@@ -282,7 +319,7 @@ class TopAlignerSlow(TopAlignerBase):
             [
                 ("topcam.cam.trigger_mode", 5),
                 ("topcam.cam.image_mode", 1),
-                ("topcam.cam.acquire", 0),
+                ("topcam.cam.acquire", 1),
             ]
         )
         self.topcam.cam_mode.set("coarse_align")
@@ -290,7 +327,6 @@ class TopAlignerSlow(TopAlignerBase):
             "topcam.cv1.outputs.output8",
             "topcam.cv1.outputs.output9",
             "topcam.cv1.outputs.output10",
-            "gonio_o",
         ]
 
     def trigger(self):
@@ -302,4 +338,4 @@ class TopAlignerSlow(TopAlignerBase):
 
 topcam = TopAlignCam("XF:17IDB-ES:AMX{Cam:9}", name="topcam")
 top_aligner_fast = TopAlignerFast(name="top_aligner_fast")
-top_aligner_slow = TopAlignerSlow(name="top_aligner")
+top_aligner_slow = TopAlignerSlow(name="top_aligner_slow")

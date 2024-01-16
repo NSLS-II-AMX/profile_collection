@@ -166,7 +166,14 @@ class WorkPositions(Device):
     o = Cpt(EpicsSignal, '{Gov:Robot-Dev:go}Pos:Work-Pos')
 
 
-work_pos = WorkPositions("XF:17IDB-ES:AMX", name="work_pos")
+class MountPositions(Device):
+    gx = Cpt(EpicsSignal, '{Gov:Robot-Dev:gx}Pos:Mount-Pos')
+    py = Cpt(EpicsSignal, '{Gov:Robot-Dev:gpy}Pos:Mount-Pos')
+    pz = Cpt(EpicsSignal, '{Gov:Robot-Dev:gpz}Pos:Mount-Pos')
+    o = Cpt(EpicsSignal, '{Gov:Robot-Dev:go}Pos:Mount-Pos')
 
+
+work_pos = WorkPositions("XF:17IDB-ES:AMX", name="work_pos")
+mount_pos = MountPositions("XF:17IDB-ES:AMX", name="mount_pos")
 two_click_low = TwoClickLowMag("XF:17IDB-ES:AMX{Cam:6}", name="two_click_low")
 loop_detector = LoopDetector(name="loop_detector")
