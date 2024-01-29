@@ -215,6 +215,7 @@ def topview_plan():
 
 def cleanup_topcam():
     yield from bps.abs_set(top_aligner_slow.topcam.cam.acquire, 1, wait=True)
+    yield from bps.abs_set(top_aligner_fast.zebra.pos_capt.direction, 0, wait=True)
 
 
 @finalize_decorator(cleanup_topcam)
@@ -283,6 +284,7 @@ def topview_optimized():
 
     # SE -> TA
     yield from bps.abs_set(top_aligner_fast.target_gov_state, "TA", wait=True)
+    yield from bps.abs_set(top_aligner_fast.zebra.pos_capt.direction, 0, wait=True)
     yield from bps.abs_set(top_aligner_fast.topcam.cam_mode, 'coarse_align')
     yield from bps.sleep(0.1)
 
@@ -317,6 +319,7 @@ def topview_optimized():
 
     # TA -> SA
     yield from bps.abs_set(top_aligner_fast.target_gov_state, "SA", wait=True)
+    yield from bps.abs_set(top_aligner_fast.zebra.pos_capt.direction, 1, wait=True)
     yield from bps.abs_set(top_aligner_fast.topcam.cam_mode, "fine_face")
     yield from bps.sleep(0.1)
 

@@ -165,7 +165,6 @@ class TopAlignerFast(TopAlignerBase):
                 ("topcam.cam.acquire", 1),
                 ("gonio_o.velocity", 90),  # slow down to get picture taken
                 ("zebra.pos_capt.source", "Enc4"),
-                ("zebra.pos_capt.direction", 1),
                 ("zebra.armsel", 0),
                 ("zebra.pos_capt.gate.start", 0.5),  # very important
                 ("zebra.pos_capt.gate.width", 4.5),
@@ -190,7 +189,6 @@ class TopAlignerFast(TopAlignerBase):
         if self.target_gov_state.get() == "TA":
             self.stage_sigs.update(
                 [
-                    ("zebra.pos_capt.direction", 0),  # positive
                     ("zebra.pos_capt.gate.start", 0.1),
                 ]
             )
@@ -198,7 +196,6 @@ class TopAlignerFast(TopAlignerBase):
         elif self.target_gov_state.get() == "SA":
             self.stage_sigs.update(
                 [
-                    ("zebra.pos_capt.direction", 1),  # negative
                     ("zebra.pos_capt.gate.start", 180),
 
                 ]
