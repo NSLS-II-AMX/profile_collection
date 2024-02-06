@@ -9,7 +9,8 @@ Created on Wed Nov  2 17:52:45 2022
 from enum import Enum
 from scipy.interpolate import interp1d
 from bluesky.utils import FailedStatus
-from bluesky.preprocessors import relative_set_decorator
+from bluesky.preprocessors import relative_set_decorator, finalize_decorator
+from ophyd.status import WaitTimeoutError
 
 
 def retry_move(func):
@@ -141,36 +142,9 @@ def topview_plan():
         )
 
         # face on calculation
-
-        A = np.matrix(
-            [
-                [np.cos(2 * omega * d), np.sin(2 * omega * d), 1]
-                for omega in omegas
-            ]
-        )
-
         b = db[scan_uid].table()[top_aligner_fast.topcam.out10_buffer.name][1]
 
-        p0 = (
-            np.linalg.inv(A.transpose() * A)
-            * A.transpose()
-            * np.matrix(b).transpose()
-        )
-        min1 = (270 - 180 * np.arctan2(p0[0], p0[1]) / np.pi) / 2
-        min2 = (-90 - 180 * np.arctan2(p0[0], p0[1]) / np.pi) / 2
-        omega_min = [min1, min2][np.abs([min1, min2]).argmin()]
-
-        print(f"ONE FREQ / {omega_min}")
-        ft = np.fft.fft(b)
         sample = 300
-        zb = np.zeros(sample, dtype=np.complex_)
-        scale = len(zb) / len(ft)
-        zb[0: len(ft) // 2] = ft[0: len(ft) // 2]
-        zb[-(len(ft) // 2 - 1):] = ft[len(ft) // 2 + 1:]
-        ift = scale * np.fft.ifft(zb)
-        omega_min = np.linspace(179.9, 0, sample)[ift.argmin()]
-        print(f"DFT / {omega_min}")
-
         f_splines = interp1d(omegas, b)
         b_splines = f_splines(np.linspace(omegas[0], omegas[-1], sample))
         omega_min = np.linspace(omegas[0], omegas[-1], sample)[
@@ -180,13 +154,11 @@ def topview_plan():
 
         return delta_y, delta_z, omega_min
 
-    # configure cam
-    # yield from bps.abs_set(top_aligner.topcam.cam_mode, "coarse_align")
-
     # ROI check for pin
-    # scan_uid = yield from bp.count([topcam], 1)
-    # if db[scan_uid].table()[f"{topcam.cv1.outputs.output9.name}"][1] < 0:
-    #    return
+    scan_uid = yield from bp.count([top_aligner_slow.topcam], 1)
+    if db[scan_uid].table()[top_aligner_slow.topcam.cv1.outputs.output9.name][1] < 0:
+        print("no pin detected")
+        return
 
     # coarse rotation axis align
     delta_y, delta_z = yield from inner_rot_scan(
@@ -203,19 +175,15 @@ def topview_plan():
     # yield from bps.sleep(0.1)
     yield from mvr_with_retry(top_aligner_slow.gonio_pz, -delta_z)
 
-    """
     # horizontal bump
-    # scan_uid = yield from bp.count([topcam], 1)
-    # x = db[scan_uid].table()[f"{topcam.cv1.outputs.output8.name}"][1]
-    # delta_x = ((topcam.roi2.size.x.get() / 2) - x) / topcam.pix_per_um.get()
-    # yield from bps.mvr(gonio.gx, delta_x)
-    """
+    scan_uid = yield from bp.count([top_aligner_slow.topcam], 1)
+    x = db[scan_uid].table()[top_aligner_slow.topcam.cv1.outputs.output8.name][1]
+    delta_x = ((top_aligner_slow.topcam.roi2.size.x.get() / 2) -
+               x) / top_aligner_slow.topcam.pix_per_um.get()
+    yield from bps.mvr(gonio.gx, delta_x)
 
     # finer rotation axis align, plus more in-focus face on omega determined
-    # yield from bps.abs_set(topcam.cam_mode, "fine_face")
-    """delta_y, delta_z, omega_min = yield from inner_rot_scan(
-        [topcam], gonio.o, 180, 0, 40
-    )"""
+
     try:
         delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan(
             [top_aligner_fast]
@@ -225,6 +193,7 @@ def topview_plan():
         yield from bps.abs_set(
             top_aligner_fast.zebra.pos_capt.arm.disarm, 1, wait=True
         )
+        yield from bps.sleep(0.5)
         yield from bps.mv(top_aligner_fast.gonio_o, 180)
         delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan(
             [top_aligner_fast]
@@ -242,3 +211,158 @@ def topview_plan():
     # yield from bps.sleep(0.1)
     yield from mvr_with_retry(top_aligner_fast.gonio_pz, -delta_z)
     yield from bps.mv(top_aligner_fast.gonio_o, omega_min)
+
+
+def cleanup_topcam():
+    yield from bps.abs_set(top_aligner_slow.topcam.cam.acquire, 1, wait=True)
+    yield from bps.abs_set(top_aligner_fast.zebra.pos_capt.direction, 0, wait=True)
+
+
+@finalize_decorator(cleanup_topcam)
+def topview_optimized():
+
+    def inner_pseudo_fly_scan(*args, **kwargs):
+        scan_uid = yield from bp.count(*args, **kwargs)
+        omegas = db[scan_uid].table()[
+            top_aligner_fast.zebra.pos_capt.data.enc4.name
+        ][1]
+
+        d = np.pi / 180
+
+        # rot axis calculation, use linear regression
+        A_rot = np.matrix(
+            [[np.cos(omega * d), np.sin(omega * d), 1] for omega in omegas]
+        )
+
+        b_rot = db[scan_uid].table()[top_aligner_fast.topcam.out9_buffer.name][
+            1
+        ]
+        p = (
+            np.linalg.inv(A_rot.transpose() * A_rot)
+            * A_rot.transpose()
+            * np.matrix(b_rot).transpose()
+        )
+
+        delta_z_pix, delta_y_pix, rot_axis_pix = p[0], p[1], p[2]
+        delta_y, delta_z = (
+            delta_y_pix / top_aligner_fast.topcam.pix_per_um.get(),
+            delta_z_pix / top_aligner_fast.topcam.pix_per_um.get(),
+        )
+
+        # face on calculation
+        b = db[scan_uid].table()[top_aligner_fast.topcam.out10_buffer.name][1]
+
+        sample = 300
+        f_splines = interp1d(omegas, b)
+        b_splines = f_splines(np.linspace(omegas[0], omegas[-1], sample))
+        omega_min = np.linspace(omegas[0], omegas[-1], sample)[
+            b_splines.argmin()
+        ]
+        print(f"SPLINES / {omega_min}")
+
+        return delta_y, delta_z, omega_min
+
+    try:
+        # horizontal bump calculation, don't move just yet to avoid disturbing gov
+        scan_uid = yield from bp.count([top_aligner_slow], 1)
+    except FailedStatus:
+        scan_uid = yield from bp.count([top_aligner_slow], 1)
+
+    x = db[scan_uid].table()[top_aligner_slow.topcam.cv1.outputs.output8.name][1]
+    delta_x = ((topcam.roi2.size.x.get() / 2) -
+               x) / topcam.pix_per_um.get()
+
+    # update work positions
+    yield from bps.abs_set(work_pos.gx, mount_pos.gx.get() + delta_x, wait=True)
+    yield from bps.abs_set(
+        work_pos.py, mount_pos.py.get(), wait=True
+    )
+    yield from bps.abs_set(
+        work_pos.pz, mount_pos.pz.get(), wait=True
+    )
+    yield from bps.abs_set(work_pos.o, 180, wait=True)
+
+    # SE -> TA
+    yield from bps.abs_set(top_aligner_fast.target_gov_state, "TA", wait=True)
+    yield from bps.abs_set(top_aligner_fast.zebra.pos_capt.direction, 0, wait=True)
+    yield from bps.abs_set(top_aligner_fast.topcam.cam_mode, 'coarse_align')
+    yield from bps.sleep(0.1)
+
+    try:
+        delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan(
+            [top_aligner_fast]
+        )
+    except (FailedStatus, WaitTimeoutError, GovernorError) as error:
+        print(f"Error: {error}")
+        print("arming problem during coarse alignment...trying again")
+
+        yield from bps.sleep(15)
+        yield from bps.abs_set(gov_rbt, 'SE', wait=True)
+        yield from bps.abs_set(top_aligner_fast.zebra.reset, 1, wait=True)
+        yield from bps.sleep(4)  # 2-3 sec will disarm zebra after reset
+
+        delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan(
+            [top_aligner_fast]
+        )
+
+    yield from mvr_with_retry(top_aligner_fast.gonio_py, delta_y)
+    yield from mvr_with_retry(top_aligner_fast.gonio_pz, -delta_z)
+
+    # update work positions
+    yield from bps.abs_set(
+        work_pos.py, mount_pos.py.get() + delta_y, wait=True
+    )
+    yield from bps.abs_set(
+        work_pos.pz, mount_pos.pz.get() - delta_z, wait=True
+    )
+    yield from bps.abs_set(work_pos.o, 0, wait=True)
+
+    # TA -> SA
+    yield from bps.abs_set(top_aligner_fast.target_gov_state, "SA", wait=True)
+    yield from bps.abs_set(top_aligner_fast.zebra.pos_capt.direction, 1, wait=True)
+    yield from bps.abs_set(top_aligner_fast.topcam.cam_mode, "fine_face")
+    yield from bps.sleep(0.1)
+
+    try:
+        delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan(
+            [top_aligner_fast]
+        )
+    except (FailedStatus, WaitTimeoutError, GovernorError) as error:
+        print(f"Error: {error}")
+        print("arming problem during fine alignment...trying again")
+        yield from bps.sleep(15)
+        # update work positions for TA reset
+        yield from bps.abs_set(work_pos.o, 180, wait=True)
+        yield from bps.abs_set(
+            work_pos.py, mount_pos.py.get(), wait=True
+        )
+        yield from bps.abs_set(
+            work_pos.pz, mount_pos.pz.get(), wait=True
+        )
+        yield from bps.abs_set(gov_rbt, 'TA', wait=True)
+        yield from bps.abs_set(top_aligner_fast.zebra.reset, 1, wait=True)
+
+        # update work positions for TA -> SA retry
+        yield from bps.abs_set(
+            work_pos.py, mount_pos.py.get() + delta_y, wait=True
+        )
+        yield from bps.abs_set(
+            work_pos.pz, mount_pos.pz.get() - delta_z, wait=True
+        )
+        yield from bps.abs_set(work_pos.o, 0, wait=True)
+        yield from bps.sleep(4)  # 2-3 sec will disarm zebra after reset
+
+        delta_y, delta_z, omega_min = yield from inner_pseudo_fly_scan(
+            [top_aligner_fast]
+        )
+
+    yield from mv_with_retry(top_aligner_fast.gonio_o, omega_min)
+    yield from mvr_with_retry(top_aligner_fast.gonio_py, delta_y)
+    yield from mvr_with_retry(top_aligner_fast.gonio_pz, -delta_z)
+
+
+def test_top_plan():
+    yield from bps.abs_set(gov_rbt, 'SE', wait=True)
+    yield from bps.sleep(3)
+    yield from topview_optimized()
+    yield from bps.sleep(3)
