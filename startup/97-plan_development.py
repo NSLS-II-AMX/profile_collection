@@ -12,7 +12,8 @@ from functools import partial
 import cv2
 
 alignment_pins = {
-    'pin_1': {'general_puck_pos': 1, 'start': (5760, 961, -216)}
+    'pin_1': {'general_puck_pos': 1, 'start': (5760, 961, -216)},
+    'pin_7': {'general_puck_pos': 7, 'start': (5595, 562, 4.1)}
 }
 
 
@@ -251,7 +252,7 @@ def rot_pin_align(
     rot_aligner=rot_aligner,
     rot_motor=gonio.o,
     long_motor=gonio.gx,
-    start=alignment_pins['pin_1']['start']
+    start=alignment_pins['pin_7']['start']
 ):
     """A bluesky plan for aligning a rotation alignment pin and calculating
     the (horizontal) rotation axis. The plan performs several increasingly
@@ -426,7 +427,7 @@ def rot_pin_align(
         add_text_bottom_left(fp, f'{omega} deg.', f'{dt}')
 
 
-def rot_pin_align_with_robot(pin='pin_1', timeout=100000):
+def rot_pin_align_with_robot(pin='pin_7', timeout=100000):
 
     if pin not in alignment_pins.keys():
         raise Exception('alignment pin is not defined, use known pin')
