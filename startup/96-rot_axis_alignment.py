@@ -1,7 +1,3 @@
-from ophyd.signal import DerivedSignal
-from ophyd.areadetector.base import ADComponent as ADCpt
-from ophyd.areadetector.base import DDC_EpicsSignal, DDC_EpicsSignalRO
-from ophyd.areadetector.plugins import PluginBase, register_plugin
 from ophyd import Component as Cpt
 from ophyd import (
     SingleTrigger,
@@ -34,8 +30,8 @@ class GonioCameraPositioner(PseudoPositioner):
     """
 
     # pseudo axes
-    cam_y = Cpt(PseudoSingle, limits=(-1000, 1000))
-    cam_z = Cpt(PseudoSingle, limits=(-1000, 1000))
+    cam_y = Cpt(PseudoSingle, limits=(-2000, 2000))
+    cam_z = Cpt(PseudoSingle, limits=(-2000, 2000))
 
     # real axes
     real_y = Cpt(EpicsMotor, "-Ax:PY}Mtr")
@@ -103,23 +99,6 @@ class GonioCameraPositioner(PseudoPositioner):
             cam_z=-(pos.real_y) * np.sin(omega * d)
             + (pos.real_z) * np.cos(omega * d),
         )
-
-
-@register_plugin
-class CVPlugin(PluginBase):
-    _default_suffix = "CV1:"
-    _suffix_re = "CV1\d:"
-    _default_read_attrs = ["outputs"]
-    func_sets = DDC_EpicsSignal(
-        *[(f"func_set{k}", f"CompVisionFunction{k}") for k in range(1, 4)]
-    )
-    inputs = DDC_EpicsSignal(
-        *[(f"input{k}", f"Input{k}") for k in range(1, 11)]
-    )
-    outputs = DDC_EpicsSignalRO(
-        *[(f"output{k}", f"Output{k}_RBV") for k in range(1, 11)]
-    )
-    cam_depth = ADCpt(EpicsSignal, "CompVisionCamDepth", kind="config")
 
 
 class RotAlignLowMag(StandardProsilica):
@@ -199,13 +178,21 @@ class RotAlignHighMag(StandardProsilica):
     pix_per_um = Cpt(Signal, value=3.4, kind="config")
     roi_offset = Cpt(Signal, value=256, kind="config")
 
+    jpeg = Cpt(
+        JPEGPluginWithFileStore,
+        "JPEG1:",
+        write_path_template="/nsls2/data/amx/shared/calibration/2024-1/rot_axis",
+    )
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.read_attrs = [
             "cv1",
             "roi4",
             "stats4",
+            "jpeg"
         ]
+        self.jpeg.read_attrs = ["full_file_name"]
 
         [
             _plugin.enable_on_stage()
@@ -244,6 +231,7 @@ class RotAlignHighMag(StandardProsilica):
                 ("cam.image_mode", 1),
             ]
         )
+        self.jpeg.stage_sigs.clear()
         if self.cam_mode.get() == "edge_detection":
             self.stage_sigs.update(
                 [
@@ -318,6 +306,24 @@ class RotAlignHighMag(StandardProsilica):
                 ]
             )
 
+        elif self.cam_mode.get() == "align_check":
+            self.stage_sigs.update(
+                [
+                    ("cam.acquire_time", 0.15),
+                    ("cam.acquire_period", 0.15),
+                    (
+                        "cam.num_images",
+                        1,
+                    ),  # this reduces missed triggers, why?
+                    ("cam.trigger_mode", 5),
+                    ("jpeg.enable", 1),
+                    ("jpeg.nd_array_port", "ROI1"),
+                    ("jpeg.file_write_mode", 0),
+                    ("jpeg.num_capture", 1),
+                    ("jpeg.auto_save", 1),
+                ]
+            )
+
         elif self.cam_mode.get() == "rot_align_contour":
             self.stage_sigs.update(
                 [
@@ -334,7 +340,7 @@ class RotAlignHighMag(StandardProsilica):
                     ("proc1.enable", 0),
                     ("proc1.enable_filter", 0),
                     ("cv1.enable", 1),
-                    ("cv1.nd_array_port", "ROI2"),
+                    ("cv1.nd_array_port", "ROI1"),
                     ("cv1.func_sets.func_set1", "None"),
                     ("cv1.func_sets.func_set2", "None"),
                     ("cv1.func_sets.func_set3", "User Function"),
@@ -415,7 +421,7 @@ class RotationAxisAligner(Device):
     )
     acceptance_criterium = Cpt(
         Signal,
-        value=20,
+        value=25,
         doc="difference in pixels we will accept",
         kind="config",
     )

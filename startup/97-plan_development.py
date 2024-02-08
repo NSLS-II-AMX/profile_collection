@@ -9,6 +9,73 @@ No assumptions or updates are made to horizontal positions."""
 
 
 from functools import partial
+import cv2
+
+alignment_pins = {
+    'pin_1': {'general_puck_pos': 1, 'start': (5651, 961, -216)}
+}
+
+
+def add_cross(image_path, cross_color=(0, 0, 255)):
+    # Load the image
+    image = cv2.imread(image_path)
+
+    # Get the center coordinates
+    height, width, _ = image.shape
+    center_x, center_y = width // 2, height // 2
+
+    # Define the size of the cross and its color
+    cross_size = 20
+
+    # Draw the horizontal line of the cross
+    cv2.line(
+        image,
+        (center_x - cross_size, center_y),
+        (center_x + cross_size, center_y),
+        cross_color,
+        1
+    )
+
+    # Draw the vertical line of the cross
+    cv2.line(
+        image,
+        (center_x, center_y - cross_size),
+        (center_x, center_y + cross_size),
+        cross_color,
+        1
+    )
+
+    # Save the result
+    cv2.imwrite(image_path, image)
+
+
+def add_text_bottom_left(image_path, *args, text_color=(0, 0, 255)):
+    # Load the image
+    image = cv2.imread(image_path)
+
+    # Get the height and width of the image
+    height, width, _ = image.shape
+
+    # Define font and other text-related parameters
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.5
+    font_thickness = 1
+
+    # Calculate the position for the first text
+    initial_x = 10
+    initial_y = height - 10  # Start from the bottom
+
+    # Iterate through the text list and place each text on the image
+    for text in args:
+        # Put text on the image
+        cv2.putText(image, text, (initial_x, initial_y), font,
+                    font_scale, text_color, font_thickness, cv2.LINE_AA)
+
+        # Update the y-coordinate for the next text
+        initial_y -= 20  # You can adjust the spacing between lines as needed
+
+    # Save the result
+    cv2.imwrite(image_path, image)
 
 
 def ten_per_step(detectors, step, pos_cache):
@@ -210,6 +277,13 @@ def rot_pin_align(
 
     """
 
+    if gov_rbt.state.get() == 'M':
+        print('found governor in M, awaiting sentinel recovery')
+        yield from bps.sleep(15)
+    yield from bps.abs_set(gov_rbt, 'PA', wait=True)
+
+    yield from bps.abs_set(rot_aligner.cam_hi.cam_mode, "rot_align")
+
     # move to last good gonio xyz values
     yield from bps.mv(rot_aligner.gc_positioner.real_y, start[1])
     yield from bps.mv(rot_aligner.gc_positioner.real_z, start[2])
@@ -219,6 +293,9 @@ def rot_pin_align(
     omega_scan_uid = yield from bp.scan(
         [rot_aligner.cam_lo], rot_motor, -10, 100, 20
     )
+
+    print('done with opening scan')
+
     omega_scan_df = db[omega_scan_uid].table()
     omega_start = omega_scan_df[rot_motor.name][
         omega_scan_df[rot_aligner.cam_lo.stats1.total.name].idxmax()
@@ -230,6 +307,8 @@ def rot_pin_align(
         rot_aligner.cam_hi, rot_aligner.gc_positioner.cam_z
     )
     yield from bps.mv(rot_aligner.gc_positioner.cam_z, best_z)
+
+    print('done with focus scan')
 
     # first coarse alignment
     delta_y, delta_z, rot_axis_pix = yield from measure_rot_axis(
@@ -243,6 +322,8 @@ def rot_pin_align(
     yield from bps.mvr(rot_aligner.gc_positioner.real_y, -delta_y)
     yield from bps.sleep(0.1)
     yield from bps.mvr(rot_aligner.gc_positioner.real_z, -delta_z)
+
+    print('moved after first alignment')
 
     # move closer to pin tip for new measurement
     # yield from bps.mvr(gonio.gx, -70)
@@ -259,11 +340,13 @@ def rot_pin_align(
     yield from bps.sleep(0.1)
     yield from bps.mvr(rot_aligner.gc_positioner.real_z, -delta_z)
 
+    print('moved after second alignment')
+
     # bring tip to center, using openCV contour to define pin tip
     yield from bps.abs_set(rot_aligner.cam_hi.cam_mode, "rot_align_contour")
     scan_uid = yield from bp.count([rot_aligner.cam_hi], 5)
     delta_x = (
-        rot_aligner.cam_hi.roi2.bin_.x.get()
+        rot_aligner.cam_hi.roi1.bin_.x.get()
         * (
             np.mean(
                 db[scan_uid].table()[
@@ -275,9 +358,7 @@ def rot_pin_align(
         / (rot_aligner.cam_hi.pix_per_um.get())
     )  # scale to account for ROI binning
 
-    print(delta_x*rot_aligner.cam_hi.pix_per_um.get())
-    # yield from bps.mvr(gonio.gx, delta_x)
-
+    yield from bps.mvr(gonio.gx, delta_x)
     # third alignment, do not attempt to move, just measure
     _, _, rot_axis_pix = yield from measure_rot_axis(
         rot_aligner.cam_hi,
@@ -287,6 +368,8 @@ def rot_pin_align(
         omega_start,
         per_step=ten_per_step,
     )
+
+    print('done with horizontal adjustment')
 
     def tune_pin_inner(cam_axis):
         """pixel to um precision is too low to properly position pin tip
@@ -322,6 +405,41 @@ def rot_pin_align(
 
     # update rotation axis signal, if move is reasonable rois will auto-update
     yield from bps.abs_set(rot_aligner.proposed_rot_axis, rot_axis_pix.item(0))
+    print('completed fine adjustments, saving reference images')
+
+    yield from bp.count(
+        [gonio.gx, gonio.py, gonio.pz, rot_aligner.current_rot_axis],
+        1, md={'amx_description': 'rotation_reference'})
+    print(f'gx: {gonio.gx.user_readback.get()}, '
+          f'gy: {gonio.py.user_readback.get()}, '
+          f'gz: {gonio.pz.user_readback.get()}')
+
+    # image check
+    yield from bps.abs_set(rot_aligner.cam_hi.cam_mode, "align_check")
+    scan_uid = yield from bp.rel_scan([rot_aligner.cam_hi], gonio.o, 0, 270, 4)
+    for fp, omega, dt in zip(
+            db[scan_uid].table()[rot_aligner.cam_hi.jpeg.full_file_name.name],
+            db[scan_uid].table()[gonio.o.name],
+            db[scan_uid].table()['time']
+    ):
+        add_cross(fp)
+        add_text_bottom_left(fp, f'{omega} deg.', f'{dt}')
+
+
+def rot_pin_align_with_robot(pin='pin_1', timeout=100000):
+
+    if pin not in alignment_pins.keys():
+        raise Exception('alignment pin is not defined, use known pin')
+
+    general_puck_pos = alignment_pins[pin]['general_puck_pos']
+    st = alignment_pins[pin]['start']
+
+    yield from bps.abs_set(gov_rbt, "SE", wait=True)
+    robrob.mount_special(general_puck_pos, timeout)
+    yield from bps.abs_set(gov_rbt, "PA", wait=True)
+    yield from rot_pin_align(start=st)
+    yield from bps.abs_set(gov_rbt, "SE", wait=True)
+    robrob.unmount_special(general_puck_pos, timeout)
 
 
 def compare_plans():

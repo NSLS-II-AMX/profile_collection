@@ -8,10 +8,6 @@ Created on Tue Sep 27 16:39:13 2022
 
 from toolz import partition
 from bluesky.preprocessors import reset_positions_decorator
-from mxtools.governor import _make_governors
-
-gov = _make_governors("XF:17IDB-ES:AMX", name="gov")
-gov_rbt = gov.gov.Robot
 
 
 def rel_scan_no_reset(detectors, *args, num=None, per_step=None, md=None):

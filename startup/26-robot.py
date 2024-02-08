@@ -14,6 +14,7 @@ from ophyd.status import SubscriptionStatus
 
 import logging
 logger = logging.getLogger(__name__)
+print(f"Loading {__file__}")
 
 
 class RobotTaskSignal(EpicsSignal):
