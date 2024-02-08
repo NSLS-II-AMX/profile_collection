@@ -12,7 +12,7 @@ from functools import partial
 import cv2
 
 alignment_pins = {
-    'pin_1': {'general_puck_pos': 1, 'start': (5651, 961, -216)}
+    'pin_1': {'general_puck_pos': 1, 'start': (5760, 961, -216)}
 }
 
 
@@ -251,7 +251,7 @@ def rot_pin_align(
     rot_aligner=rot_aligner,
     rot_motor=gonio.o,
     long_motor=gonio.gx,
-    start=(5155, -198, 240)
+    start=alignment_pins['pin_1']['start']
 ):
     """A bluesky plan for aligning a rotation alignment pin and calculating
     the (horizontal) rotation axis. The plan performs several increasingly
