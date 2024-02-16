@@ -8,6 +8,7 @@ Created on Tue Sep 27 16:39:13 2022
 
 from toolz import partition
 from bluesky.preprocessors import reset_positions_decorator
+print(f"Loading {__file__}")
 
 
 def rel_scan_no_reset(detectors, *args, num=None, per_step=None, md=None):
@@ -51,7 +52,14 @@ def rel_scan_no_reset(detectors, *args, num=None, per_step=None, md=None):
     return (yield from inner_rel_scan())
 
 
-@reset_positions_decorator([sht.r, gov_rbt])
+def cleanup_beam_align():
+    yield from bps.mv(sht.r, 20)  # close shutter
+    # safely disable jpeg plugin
+    yield from bps.abs_set(cam_hi_ba.cam_mode, "beam_align")
+
+
+@finalize_decorator(cleanup_beam_align)
+@reset_positions_decorator([gov_rbt])
 def beam_align():
     """bluesky plan for beam alignment with ADCompVision plugin and KB mirror
     piezo tweaks. This plan can be run from any governor state that can access
@@ -61,7 +69,7 @@ def beam_align():
     if smart_magnet.sample_detect.get() == 0:
         raise Exception("Sample mounted on gonio! Avoided collision")
 
-    # wait for attenuators to finish moving
+    # wait for attenuators to finish moving, due to IOC
     yield from bps.abs_set(mxatten, 0.002)
     yield from bps.sleep(5)
 
@@ -69,54 +77,74 @@ def beam_align():
     yield from bps.abs_set(gov_rbt, "BL", wait=True)
     yield from bps.mv(sht.r, 0)
 
-    yield from bps.abs_set(rot_aligner.cam_hi.cam_mode, "beam_align")
+    yield from bps.abs_set(cam_hi_ba.cam_mode, "beam_align")
 
-    # which direction, x pos. pitch beam outboard (-), y pos. pitch beam up (+)
-    scan_uid = yield from bp.count([rot_aligner.cam_hi], 1)
-    centroid_x, centroid_y = (
-        db[scan_uid].table()[rot_aligner.cam_hi.cv1.outputs.output1.name][1],
-        db[scan_uid].table()[rot_aligner.cam_hi.cv1.outputs.output2.name][1],
-    )
+    # set aligned to false to before align attempt
+    yield from bps.abs_set(kbt.hor.aligned, False)
+    yield from bps.abs_set(kbt.ver.aligned, False)
 
-    if np.isclose(0, centroid_x) or np.isclose(0, centroid_y):
-        raise Exception("No centroid detected!")
+    n_tries = 0
+    while n_tries <= 3:
 
-    yield from bps.abs_set(kbt.hor.delta_px, (centroid_x - 320))
-    yield from bps.abs_set(kbt.ver.delta_px, -(centroid_y - 256))
+        # beam is aligned, no need to proceed
+        if (kbt.hor.aligned.get() and kbt.ver.aligned.get()):
+            break
 
-    def lin_reg(independent, dependent, goal, **kwargs) -> float:
-        b = dependent
-        A = np.matrix([[pos, 1] for pos in independent])
-        p = (
-            np.linalg.inv(A.transpose() * A)
-            * A.transpose()
-            * np.matrix(b.to_numpy()).transpose()
+        # which direction, x pos. pitch beam outboard (-), y pos. pitch beam up (+)
+        scan_uid = yield from bp.count([cam_hi_ba], 1)
+        centroid_x, centroid_y = (
+            db[scan_uid].table()[cam_hi_ba.cv1.outputs.output1.name][1],
+            db[scan_uid].table()[cam_hi_ba.cv1.outputs.output2.name][1],
         )
-        best = (goal - p[1]) / p[0]
-        return best
 
-    for axis, signal, center in (
-        kbt.hor,
-        rot_aligner.cam_hi.cv1.outputs.output1,
-        320,
-    ), (kbt.ver, rot_aligner.cam_hi.cv1.outputs.output2, 256):
-        # skip if we are within 1 um
-        if abs(axis.delta_px.get()) > 2:
-            scan_uid = yield from rel_scan_no_reset(
-                [rot_aligner.cam_hi],
-                axis,
-                0,
-                0.4 * -(axis.delta_px.get() / abs(axis.delta_px.get())),
-                10,
-            )
-            scan_df = db[scan_uid].table()
-            best_voltage = lin_reg(
-                scan_df[axis.readback.name],
-                scan_df[signal.name],
-                center,
-            )
-            yield from bps.mv(axis, best_voltage)
-            yield from bps.sleep(1)
+        if np.isclose(0, centroid_x) or np.isclose(0, centroid_y):
+            raise Exception("No centroid detected!")
 
-    # close shutters and reset attenuators for manual viewing
-    yield from bps.mv(sht.r, 20)
+        yield from bps.abs_set(kbt.hor.delta_px, (centroid_x - 320))
+        yield from bps.abs_set(kbt.ver.delta_px, -(centroid_y - 256))
+
+        def lin_reg(independent, dependent, goal, **kwargs) -> float:
+            b = dependent
+            A = np.matrix([[pos, 1] for pos in independent])
+            p = (
+                np.linalg.inv(A.transpose() * A)
+                * A.transpose()
+                * np.matrix(b.to_numpy()).transpose()
+            )
+            best = (goal - p[1]) / p[0]
+            return best
+
+        for axis, signal, center in (
+            kbt.hor,
+            cam_hi_ba.cv1.outputs.output1,
+            320,
+        ), (kbt.ver, cam_hi_ba.cv1.outputs.output2, 256):
+            # skip if we are within 1 um
+            if abs(axis.delta_px.get()) > 2 and not axis.aligned.get():
+                scan_uid = yield from rel_scan_no_reset(
+                    [cam_hi_ba],
+                    axis,
+                    0,
+                    0.4 * -(axis.delta_px.get() / abs(axis.delta_px.get())),
+                    10,
+                )
+                scan_df = db[scan_uid].table()
+                best_voltage = lin_reg(
+                    scan_df[axis.readback.name],
+                    scan_df[signal.name],
+                    center,
+                )
+                yield from bps.mv(axis, best_voltage)
+                yield from bps.sleep(1)
+            else:
+                print(f'{axis.name} is aligned')
+                yield from bps.abs_set(axis.aligned, True, wait=True)
+        n_tries += 1
+
+    # annotate reference image
+    yield from bps.abs_set(cam_hi_ba.cam_mode, "beam_align_check")
+    scan_uid = yield from bp.count([cam_hi_ba], 1)
+    fp = db[scan_uid].table()[cam_hi_ba.jpeg.full_file_name.name][1]
+    add_cross(fp)
+    t_ = db[scan_uid].table()['time'][1]
+    add_text_bottom_left(fp, f'{t_}')

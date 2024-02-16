@@ -231,7 +231,7 @@ class RotAlignHighMag(StandardProsilica):
                 ("cam.image_mode", 1),
             ]
         )
-        self.jpeg.stage_sigs.clear()
+        self.jpeg.stage_sigs.clear()  # must disable inherited defaults
         if self.cam_mode.get() == "edge_detection":
             self.stage_sigs.update(
                 [
@@ -375,6 +375,27 @@ class RotAlignHighMag(StandardProsilica):
 
             self._disable_stats_plugins()
 
+        elif self.cam_mode.get() == "beam_align_check":
+            self.jpeg.write_path_template = "/nsls2/data/amx/shared/calibration/2024-1/beam_align"
+            self.stage_sigs.update(
+                [
+                    ("cam.acquire_time", 0.6),
+                    ("cam.acquire_period", 0.6),
+                    (
+                        "cam.num_images",
+                        1,
+                    ),  # this reduces missed triggers, why?
+                    ("cam.trigger_mode", 5),
+                    ("jpeg.enable", 1),
+                    ("jpeg.nd_array_port", "ROI1"),
+                    ("jpeg.file_write_mode", 0),
+                    ("jpeg.num_capture", 1),
+                    ("jpeg.auto_save", 1),
+                ]
+            )
+
+            self._disable_stats_plugins()
+
     def _disable_stats_plugins(self):
         # disable stats plugins, reduce ioc load, avoid missing triggers
         stats_plugins = [
@@ -451,4 +472,4 @@ class RotationAxisAligner(Device):
 
 
 rot_aligner = RotationAxisAligner("XF:17IDB-ES:AMX", name="rot_aligner")
-cam_hi_ba = RotAlignHighMag("XF:17IDB-ES:AMX{Cam:7}", name="cam_hi")
+cam_hi_ba = RotAlignHighMag("XF:17IDB-ES:AMX{Cam:7}", name="cam_hi_ba")

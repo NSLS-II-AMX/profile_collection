@@ -62,6 +62,11 @@ class KBTweakerAxis(PVPositionerIsClose):
     setpoint = Cpt(EpicsSignal, "")
     readback = Cpt(EpicsSignalRO, "RBV")
     delta_px = Cpt(Signal, value=0, doc="distance to ROI center in pixels")
+    aligned = Cpt(
+        Signal,
+        value=False,
+        doc="bool representing whether or not axis has been brought to center"
+    )
     rtol = 0.01
     limits = (-2.5, 2.5)
 
@@ -144,7 +149,5 @@ class SmartMagnet(Device):
 
 
 smart_magnet = SmartMagnet("XF:17IDB-ES:AMX{Wago:1}", name="smart_magnet")
-
 mxatten = MXAttenuator("XF:17IDB-OP:AMX{Attn:BCU}", name="mxatten")
 kbt = KBTweaker("XF:17ID-ES:AMX{Best:2", name="kbt")
-cam_hi_ba = SpecialProsilica("XF:17IDB-ES:AMX{Cam:7}", name="cam_hi")

@@ -1,19 +1,19 @@
+from bluesky.preprocessors import relative_set_decorator, finalize_decorator
+from ophyd.signal import EpicsSignalBase
+from ophyd.areadetector.filestore_mixins import resource_factory
+from ophyd import Component, Device, EpicsSignal
+from IPython import get_ipython
+import numpy as np
+import nslsii
+import matplotlib.pyplot
+import matplotlib
+import appdirs
+import time
+from pathlib import Path
+import uuid
+import os
 print(f"Loading {__file__}")
 
-import os
-import uuid
-from pathlib import Path
-import time
-
-import appdirs
-import matplotlib
-import matplotlib.pyplot
-import nslsii
-import numpy as np
-from IPython import get_ipython
-from ophyd import Component, Device, EpicsSignal
-from ophyd.areadetector.filestore_mixins import resource_factory
-from ophyd.signal import EpicsSignalBase
 
 try:
     ###############################################################################
@@ -57,7 +57,8 @@ try:
     from ophyd.signal import EpicsSignalBase
 
     # EpicsSignalBase.set_default_timeout(timeout=10, connection_timeout=10)  # old style
-    EpicsSignalBase.set_defaults(timeout=10, connection_timeout=10)  # new style
+    EpicsSignalBase.set_defaults(
+        timeout=10, connection_timeout=10)  # new style
 
 except ImportError:
     pass
@@ -79,6 +80,5 @@ try:
 except ImportError:
     print('Older bluesky did not have PersistentDict, moving on.')
 
-#Optional: set any metadata that rarely changes.
+# Optional: set any metadata that rarely changes.
 RE.md['beamline_id'] = 'AMX'
-
