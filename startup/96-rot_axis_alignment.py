@@ -192,7 +192,6 @@ class RotAlignHighMag(StandardProsilica):
             "stats4",
             "jpeg"
         ]
-        self.jpeg.read_attrs = ["full_file_name"]
 
         [
             _plugin.enable_on_stage()
@@ -213,7 +212,7 @@ class RotAlignHighMag(StandardProsilica):
             "output7",
             "output8",
         ]  # 3 vert center, 7 left pixel, 8 right pixel
-        self.stats4.read_attrs = ["centroid", "max_xy"]
+        self.stats4.read_attrs = ["centroid", "max_xy", "sigma"]
         self.stats4.centroid.read_attrs = ["x", "y"]
         self.stats4.max_xy.read_attrs = ["x", "y"]
         self._update_stage_sigs()
@@ -232,55 +231,14 @@ class RotAlignHighMag(StandardProsilica):
             ]
         )
         self.jpeg.stage_sigs.clear()  # must disable inherited defaults
-        if self.cam_mode.get() == "edge_detection":
-            self.stage_sigs.update(
-                [
-                    ("cam.acquire_time", 0.15),
-                    ("cam.acquire_period", 0.15),
-                    ("cam.trigger_mode", 5),
-                    ("cv1.enable", 1),
-                    ("cv1.nd_array_port", "ROI4"),
-                    ("cv1.func_sets.func_set1", "Canny Edge Detection"),
-                    ("cv1.func_sets.func_set2", "None"),
-                    ("cv1.func_sets.func_set3", "None"),
-                    ("cv1.inputs.input1", 35),
-                    ("cv1.inputs.input2", 8),
-                    ("cv1.inputs.input3", 13),
-                    ("cv1.inputs.input4", 5),
-                    ("roi4.min_xyz.min_x", 812),
-                    ("roi4.min_xyz.min_y", 0),
-                    ("roi4.size.x", 1114),
-                    ("roi4.size.y", 1246),
-                ]
-            )
 
-        if self.cam_mode.get() == "laplacian":
+        if self.cam_mode.get() == "rot_align":
             self.stage_sigs.update(
                 [
                     ("cam.acquire_time", 0.15),
-                    ("cam.acquire_period", 0.15),
+                    ("cam.acquire_period", 1),
                     ("cam.trigger_mode", 5),
-                    ("cv1.enable", 1),
-                    ("cv1.nd_array_port", "ROI1"),
-                    ("cv1.func_sets.func_set1", "Laplacian"),
-                    ("cv1.func_sets.func_set2", "None"),
-                    ("cv1.func_sets.func_set3", "None"),
-                    ("cv1.inputs.input1", 5),
-                    ("cv1.inputs.input2", 5),
-                    ("cv1.inputs.input3", 3),
-                    ("cv1.inputs.input4", 5),
-                    ("roi4.min_xyz.min_x", 812),
-                    ("roi4.min_xyz.min_y", 0),
-                    ("roi4.size.x", 1114),
-                    ("roi4.size.y", 1246),
-                ]
-            )
-
-        elif self.cam_mode.get() == "rot_align":
-            self.stage_sigs.update(
-                [
-                    ("cam.acquire_time", 0.15),
-                    ("cam.acquire_period", 0.15),
+                    ("cam.num_images", 1),
                     ("cv1.enable", 0),
                     ("cv1.nd_array_port", "CAM"),
                     ("proc1.nd_array_port", "CC1"),
@@ -310,7 +268,7 @@ class RotAlignHighMag(StandardProsilica):
             self.stage_sigs.update(
                 [
                     ("cam.acquire_time", 0.15),
-                    ("cam.acquire_period", 0.15),
+                    ("cam.acquire_period", 0.5),
                     (
                         "cam.num_images",
                         1,
@@ -320,7 +278,7 @@ class RotAlignHighMag(StandardProsilica):
                     ("jpeg.nd_array_port", "ROI1"),
                     ("jpeg.file_write_mode", 0),
                     ("jpeg.num_capture", 1),
-                    ("jpeg.auto_save", 1),
+                    ("proc1.nd_array_port", "CAM"),
                 ]
             )
 
@@ -328,10 +286,10 @@ class RotAlignHighMag(StandardProsilica):
             self.stage_sigs.update(
                 [
                     ("cam.acquire_time", 0.15),
-                    ("cam.acquire_period", 0.15),
+                    ("cam.acquire_period", 0.3),
                     (
                         "cam.num_images",
-                        2,
+                        1,
                     ),  # this reduces missed triggers, why?
                     ("cam.trigger_mode", 5),
                     ("cc1.enable", 1),
@@ -357,7 +315,7 @@ class RotAlignHighMag(StandardProsilica):
             self.stage_sigs.update(
                 [
                     ("cam.acquire_time", 0.6),
-                    ("cam.acquire_period", 0.6),
+                    ("cam.acquire_period", 0.8),
                     ("cv1.enable", 1),
                     ("cv1.nd_array_port", "ROI1"),
                     ("cv1.func_sets.func_set1", "None"),
@@ -380,17 +338,16 @@ class RotAlignHighMag(StandardProsilica):
             self.stage_sigs.update(
                 [
                     ("cam.acquire_time", 0.6),
-                    ("cam.acquire_period", 0.6),
+                    ("cam.acquire_period", 0.8),
                     (
                         "cam.num_images",
                         1,
                     ),  # this reduces missed triggers, why?
-                    ("cam.trigger_mode", 5),
+                    ("cam.trigger_mode", 0),
                     ("jpeg.enable", 1),
                     ("jpeg.nd_array_port", "ROI1"),
                     ("jpeg.file_write_mode", 0),
                     ("jpeg.num_capture", 1),
-                    ("jpeg.auto_save", 1),
                 ]
             )
 
@@ -422,6 +379,14 @@ class RotAlignHighMag(StandardProsilica):
         self.roi2.min_xyz.min_y.put(
             self.roi1.min_xyz.min_y.get() - self.roi_offset.get()
         )
+
+    def trigger(self):
+        try:
+            status = super().trigger()
+            status.wait(6)
+        except AttributeError:
+            raise FailedStatus
+        return status
 
     def stage(self, *args, **kwargs):
         self._update_stage_sigs(*args, **kwargs)
@@ -456,11 +421,7 @@ class RotationAxisAligner(Device):
 
     def _update_rois(self, delta_pix, **kwargs):
         self.cam_hi.roi1.min_xyz.min_y.put(self.current_rot_axis.get() - 256)
-        self.cam_lo.roi1.min_xyz.min_y.put(
-            delta_pix
-            * (self.cam_lo.pix_per_um.get() / self.cam_hi.pix_per_um.get())
-            + self.cam_lo.roi1.min_xyz.min_y.get()
-        )
+        # TODO feature registration (pin tip) with low mag
 
     def _update_rot_axis(self, *args, **kwargs):
         delta_pix = round(

@@ -55,6 +55,7 @@ def rel_scan_no_reset(detectors, *args, num=None, per_step=None, md=None):
 def cleanup_beam_align():
     yield from bps.mv(sht.r, 20)  # close shutter
     # safely disable jpeg plugin
+    yield from bps.abs_set(cam_hi_ba.jpeg.auto_save, 0)
     yield from bps.abs_set(cam_hi_ba.cam_mode, "beam_align")
 
 
@@ -143,8 +144,19 @@ def beam_align():
 
     # annotate reference image
     yield from bps.abs_set(cam_hi_ba.cam_mode, "beam_align_check")
+    yield from bps.abs_set(cam_hi_ba.jpeg.auto_save, 1, wait=True)
     scan_uid = yield from bp.count([cam_hi_ba], 1)
-    fp = db[scan_uid].table()[cam_hi_ba.jpeg.full_file_name.name][1]
-    add_cross(fp)
+
+    rd = [k for k in db[scan_uid].documents('primary') if k[0] == 'resource']
+    filename = rd[-1][-1]['resource_kwargs']['filename']
+    resource_path = rd[-1][-1]['resource_path']
+    template = rd[-1][-1]['resource_kwargs']['template']
+    root = rd[-1][-1]['root']
+    full_resource_path = root + resource_path + '/'
+
+    # grab the 0 index, single image
+    _fp = template % (full_resource_path, filename, 0)
+    print(_fp)
+    add_cross(_fp)
     t_ = db[scan_uid].table()['time'][1]
-    add_text_bottom_left(fp, f'{t_}')
+    add_text_bottom_left(_fp, f'{t_}')

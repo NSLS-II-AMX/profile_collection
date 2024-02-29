@@ -13,11 +13,11 @@ print(f"Loading {__file__}")
 
 alignment_pins = {
     'pin_1': {'general_puck_pos': 1, 'start': (5760, 961, -216)},
-    'pin_7': {'general_puck_pos': 7, 'start': (5595, 562, 4.1)}
+    'pin_7': {'general_puck_pos': 7, 'start': (5595, 600, -240)}
 }
 
 
-def ten_per_step(detectors, step, pos_cache):
+def five_per_step(detectors, step, pos_cache):
     """A per_step hook for acquiring multiple images when we cannot alter
     lighting conditions. Noise from the cryo-stream during edge detection steps
     is minimized by taking multiple measurements (instead of a long exposure).
@@ -39,8 +39,9 @@ def ten_per_step(detectors, step, pos_cache):
     motor = list(step.keys())[0]  # assume 1d scan
     yield from bps.mv(motor, step[motor])
     yield from bps.repeat(
-        partial(bps.trigger_and_read, (list(detectors) + list(step.keys()))),
-        num=10,
+        partial(bps.trigger_and_read,
+                (list(detectors) + list(step.keys()))),
+        num=5,
     )
 
 
@@ -51,9 +52,11 @@ def measure_rot_axis(
     rot_motor,
     start,
     *,
+    filter_signal={},
     sweep_width=270,
     n_steps=4,
     per_step=None,
+    md=None
 ):
     """make n_steps number of measurements and perform linear regression to
     calculate the vertical position of the rotation axis in camera coordinates
@@ -78,6 +81,9 @@ def measure_rot_axis(
         Rotation axis motor.
     start: float
         Starting omega angle of rotation axis (degrees).
+    filter_signal: dict
+        Dictionary with key ophyd signal and value filtering criterium. This
+        parameter is used to exclude outliers from regression.
     sweep_width: float
         Angular range of rotation scan (degrees).
     n_steps: int
@@ -86,20 +92,44 @@ def measure_rot_axis(
     per_step: func
         Hook for injecting custom trigger/read methods into scan.
     """
-    detector.cam_mode.put(mode)
-    scan_uid = yield from bp.scan(
-        [detector],
-        rot_motor,
-        start,
-        start + sweep_width,
-        n_steps,
-        per_step=per_step,
-    )
-    b = db[scan_uid].table()[signal.name]
+
+    _md = md or {}
+
+    yield from bps.abs_set(detector.cam_mode, mode, wait=True)
+
+    try:
+        scan_uid = yield from bp.scan(
+            [detector],
+            rot_motor,
+            start,
+            start + sweep_width,
+            n_steps,
+            per_step=per_step,
+            md=_md
+        )
+    except WaitTimeoutError as error:
+        print(f"caught {error} in measure_rot_axis")
+        yield from bps.abs_set(detector.cam.acquire, 0, wait=True)
+        scan_uid = yield from bp.scan(
+            [detector],
+            rot_motor,
+            start,
+            start + sweep_width,
+            n_steps,
+            per_step=per_step,
+            md=_md
+        )
+
+    # apply signal filter to scan data
+    df = db[scan_uid].table()
+    for sig in filter_signal.keys():
+        df = df[df[sig.name] > filter_signal[sig]]
+
+    b = df[signal.name]
     A = np.matrix(
         [
             [np.cos(np.deg2rad(omega)), np.sin(np.deg2rad(omega)), 1]
-            for omega in db[scan_uid].table()[rot_motor.name]
+            for omega in df[rot_motor.name]
         ]
     )
     p = (
@@ -158,39 +188,28 @@ def measure_opening_dist(detector, roi):
     return delta_x, delta_y
 
 
-def align_centroid(detector, roi, x_axis, y_axis, rot_axis, *, n_steps=3):
-    """a crude rotation alignment assuming that current omega value allows
-    for visualization through sheath opening"""
+def rot_pin_align_cleanup():
+    """Safety measure in case jpeg plugin stuck enabled. For some reason plugin
+    write mode must be "Single" for bluesky/ophyd, if we leave this signal as a
+    stage_sig and file write mode is not "Single", e.g. "Capture" or "Stream" this
+    affects some timing and results in a mismatched resource name. The wrong
+    filename ends up in the corresponding event document. Some experimenting
+    shows that if we leave write mode as "Single" we can set auto save outside
+    of staging to obtain the expected behavior. Similarly we set auto_save in 
+    the plan and then reset it back to a safe default (off) here."""
 
-    def move_centroid_inner(n_steps):
-        for _ in range(0, n_steps):
-            delta_x, delta_y = yield from measure_opening_dist(detector, roi)
-            yield from bps.mvr(x_axis, delta_x)
-            yield from bps.sleep(0.5)
-            yield from bps.mvr(y_axis, -delta_y)
-
-    yield from move_centroid_inner(n_steps)
-    yield from bps.mvr(rot_axis, 90)
-    yield from move_centroid_inner(n_steps)
-
-
-def pin_focus_scan(detector, axis):
-    """use an axis perpendicular to camera image to adjust focus, determine
-    optimally focused position with canny edge detection. The geometry assumes
-    that pin tip is coming from the right, thus argmin used for OpenCV
-    convention. Pin tip coming from left would require argmax."""
-    yield from bps.abs_set(detector.cam_mode, "laplacian")
-    scan_uid = yield from bp.rel_scan([detector], axis, -400, 400, 60)
-    left_pixels = db[scan_uid].table()[detector.cv1.outputs.output1.name]
-    best_cam_z = db[scan_uid].table()[axis.name][left_pixels.argmax()]
-    return best_cam_z
+    yield from bps.abs_set(rot_aligner.cam_hi.jpeg.file_write_mode, 0)
+    yield from bps.abs_set(rot_aligner.cam_hi.jpeg.enable, 0)
+    yield from bps.abs_set(rot_aligner.cam_hi.jpeg.auto_save, 0)
 
 
+@finalize_decorator(rot_pin_align_cleanup)
 def rot_pin_align(
     rot_aligner=rot_aligner,
     rot_motor=gonio.o,
     long_motor=gonio.gx,
-    start=alignment_pins['pin_7']['start']
+    start=alignment_pins['pin_7']['start'],
+    pin=alignment_pins['pin_7']['general_puck_pos']
 ):
     """A bluesky plan for aligning a rotation alignment pin and calculating
     the (horizontal) rotation axis. The plan performs several increasingly
@@ -213,24 +232,27 @@ def rot_pin_align(
     Returns
     -------
     None.
-
     """
+
+    _md = {'plan_group': 'rot_pin_align',
+           'plan_group_id': str(uuid.uuid4()),
+           'alignment_pin': pin}
 
     if gov_rbt.state.get() == 'M':
         print('found governor in M, awaiting sentinel recovery')
         yield from bps.sleep(15)
-    yield from bps.abs_set(gov_rbt, 'PA', wait=True)
-
-    yield from bps.abs_set(rot_aligner.cam_hi.cam_mode, "rot_align")
+    yield from bps.mv(gov_rbt, 'PA')
 
     # move to last good gonio xyz values
     yield from bps.mv(rot_aligner.gc_positioner.real_y, start[1])
     yield from bps.mv(rot_aligner.gc_positioner.real_z, start[2])
     yield from bps.mv(long_motor, start[0])
 
+    yield from bps.abs_set(rot_aligner.cam_hi.cam_mode, "rot_align", wait=True)
+
     # find optimal omega for sheath opening
     omega_scan_uid = yield from bp.scan(
-        [rot_aligner.cam_lo], rot_motor, -10, 100, 20
+        [rot_aligner.cam_lo], rot_motor, -10, 100, 20, md=_md
     )
 
     print('done with opening scan')
@@ -241,14 +263,6 @@ def rot_pin_align(
     ]
     yield from bps.mv(rot_motor, omega_start)
 
-    # focus scan
-    best_z = yield from pin_focus_scan(
-        rot_aligner.cam_hi, rot_aligner.gc_positioner.cam_z
-    )
-    yield from bps.mv(rot_aligner.gc_positioner.cam_z, best_z)
-
-    print('done with focus scan')
-
     # first coarse alignment
     delta_y, delta_z, rot_axis_pix = yield from measure_rot_axis(
         rot_aligner.cam_hi,
@@ -256,12 +270,13 @@ def rot_pin_align(
         "rot_align",
         rot_motor,
         omega_start,
+        filter_signal={rot_aligner.cam_hi.stats4.sigma: 5},
+        md=_md
     )
     # move to approximate rotation axis
     yield from bps.mvr(rot_aligner.gc_positioner.real_y, -delta_y)
     yield from bps.sleep(0.1)
     yield from bps.mvr(rot_aligner.gc_positioner.real_z, -delta_z)
-
     print('moved after first alignment')
 
     # move closer to pin tip for new measurement
@@ -274,6 +289,7 @@ def rot_pin_align(
         "rot_align",
         rot_motor,
         omega_start,
+        md=_md
     )
     yield from bps.mvr(rot_aligner.gc_positioner.real_y, -delta_y)
     yield from bps.sleep(0.1)
@@ -283,7 +299,12 @@ def rot_pin_align(
 
     # bring tip to center, using openCV contour to define pin tip
     yield from bps.abs_set(rot_aligner.cam_hi.cam_mode, "rot_align_contour")
-    scan_uid = yield from bp.count([rot_aligner.cam_hi], 5)
+    try:
+        scan_uid = yield from bp.count([rot_aligner.cam_hi], 5, md=_md)
+    except (FailedStatus, WaitTimeoutError) as error:
+        print(f"caught {error} during horizontal positioning, retrying...")
+        scan_uid = yield from bp.count([rot_aligner.cam_hi], 5, md=_md)
+
     delta_x = (
         rot_aligner.cam_hi.roi1.bin_.x.get()
         * (
@@ -305,7 +326,8 @@ def rot_pin_align(
         "rot_align_contour",
         rot_motor,
         omega_start,
-        per_step=ten_per_step,
+        per_step=five_per_step,
+        md=_md
     )
 
     print('done with horizontal adjustment')
@@ -320,7 +342,7 @@ def rot_pin_align(
             rot_aligner.cam_hi.cam_mode, "rot_align_contour"
         )
         scan_uid = yield from bp.rel_scan(
-            [rot_aligner.cam_hi], cam_axis, -5, 5, 5, per_step=ten_per_step
+            [rot_aligner.cam_hi], cam_axis, -5, 5, 5, per_step=five_per_step, md=_md
         )
         scan_df = db[scan_uid].table()
         b = scan_df[rot_aligner.cam_hi.cv1.outputs.output2.name]
@@ -343,24 +365,40 @@ def rot_pin_align(
     yield from bps.mv(rot_aligner.gc_positioner.cam_y, best_cam_y)
 
     # update rotation axis signal, if move is reasonable rois will auto-update
-    yield from bps.abs_set(rot_aligner.proposed_rot_axis, rot_axis_pix.item(0))
+    # put in reference of entire cam_hi image
+    proposed_rot_axis = rot_aligner.cam_hi.roi1.min_xyz.min_y.get() + \
+        rot_axis_pix.item(0)
+    yield from bps.abs_set(rot_aligner.proposed_rot_axis, proposed_rot_axis)
     print('completed fine adjustments, saving reference images')
 
     yield from bp.count(
-        [gonio.gx, gonio.py, gonio.pz, rot_aligner.current_rot_axis],
-        1, md={'amx_description': 'rotation_reference'})
+        [gonio.gx, gonio.py, gonio.pz, rot_aligner.current_rot_axis,
+            rot_aligner.proposed_rot_axis],
+        1, md={'plan_description': 'rotation_reference', **_md})
+
     print(f'gx: {gonio.gx.user_readback.get()}, '
           f'gy: {gonio.py.user_readback.get()}, '
           f'gz: {gonio.pz.user_readback.get()}')
 
     # image check
-    yield from bps.abs_set(rot_aligner.cam_hi.cam_mode, "align_check")
-    scan_uid = yield from bp.rel_scan([rot_aligner.cam_hi], gonio.o, 0, 270, 4)
+    yield from bps.abs_set(rot_aligner.cam_hi.cam_mode, "align_check", wait=True)
+    yield from bps.abs_set(rot_aligner.cam_hi.jpeg.auto_save, 1, wait=True)
+
+    scan_uid = yield from bp.rel_scan([rot_aligner.cam_hi], gonio.o, -90, 180, 4, md=_md)
+    rd = [k for k in db[scan_uid].documents('primary') if k[0] == 'resource']
+    filename = rd[-1][-1]['resource_kwargs']['filename']
+    resource_path = rd[-1][-1]['resource_path']
+    template = rd[-1][-1]['resource_kwargs']['template']
+    root = rd[-1][-1]['root']
+    full_resource_path = root + resource_path + '/'
+
     for fp, omega, dt in zip(
-            db[scan_uid].table()[rot_aligner.cam_hi.jpeg.full_file_name.name],
-            db[scan_uid].table()[gonio.o.name],
-            db[scan_uid].table()['time']
+        [template % (full_resource_path, filename, k-1)  # account for dataframe shift
+         for k in db[scan_uid].table().index],
+        db[scan_uid].table()[gonio.o.name],
+        db[scan_uid].table()['time']
     ):
+
         add_cross(fp)
         add_text_bottom_left(fp, f'{omega} deg.', f'{dt}')
 
@@ -374,6 +412,8 @@ def rot_pin_align_with_robot(pin='pin_7', timeout=100000):
     st = alignment_pins[pin]['start']
 
     yield from bps.abs_set(gov_rbt, "SE", wait=True)
+
+    print(f"mounting alignment {pin}")
     robrob.mount_special(general_puck_pos, timeout)
     yield from bps.abs_set(gov_rbt, "PA", wait=True)
     yield from rot_pin_align(start=st)
@@ -392,7 +432,7 @@ def compare_plans():
             "rot_align",
             gonio.o,
             94,
-            per_step=ten_per_step,
+            per_step=five_per_step,
         )
 
     for i in range(0, 10):
@@ -402,5 +442,5 @@ def compare_plans():
             "rot_align_contour",
             gonio.o,
             94,
-            per_step=ten_per_step,
+            per_step=five_per_step,
         )
