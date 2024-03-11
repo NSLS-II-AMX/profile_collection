@@ -245,7 +245,7 @@ class RotAlignHighMag(StandardProsilica):
                     ("proc1.enable_filter", 1),
                     ("proc1.filter_type", "CopyToFilter"),
                     ("proc1.o_scale", -1),
-                    ("proc1.o_offset", 140),
+                    ("proc1.o_offset", 255),
                     (
                         "roi4.min_xyz.min_x",
                         self.roi1.min_xyz.min_x.get() + 302,
@@ -253,6 +253,7 @@ class RotAlignHighMag(StandardProsilica):
                     ("roi4.min_xyz.min_y", 0),
                     ("roi4.size.x", 25),
                     ("roi4.size.y", 1246),
+                    ("stats4.nd_array_port", "PROC1")
                 ]
             )
 

@@ -97,25 +97,28 @@ def measure_rot_axis(
 
     yield from bps.abs_set(detector.cam_mode, mode, wait=True)
 
+    omega_list = np.concatenate(
+        [np.linspace(start + k, start + sweep_width + k, n_steps)
+         for k in (-10, 0, 10)]
+    )
+    omega_list.sort()
+    omega_list = list(omega_list)
+
     try:
-        scan_uid = yield from bp.scan(
+        scan_uid = yield from bp.list_scan(
             [detector],
             rot_motor,
-            start,
-            start + sweep_width,
-            n_steps,
+            omega_list,
             per_step=per_step,
             md=_md
         )
     except WaitTimeoutError as error:
         print(f"caught {error} in measure_rot_axis")
         yield from bps.abs_set(detector.cam.acquire, 0, wait=True)
-        scan_uid = yield from bp.scan(
+        scan_uid = yield from bp.list_scan(
             [detector],
             rot_motor,
-            start,
-            start + sweep_width,
-            n_steps,
+            omega_list,
             per_step=per_step,
             md=_md
         )
@@ -124,6 +127,7 @@ def measure_rot_axis(
     df = db[scan_uid].table()
     for sig in filter_signal.keys():
         df = df[df[sig.name] > filter_signal[sig]]
+        break
 
     b = df[signal.name]
     A = np.matrix(
@@ -270,7 +274,7 @@ def rot_pin_align(
         "rot_align",
         rot_motor,
         omega_start,
-        filter_signal={rot_aligner.cam_hi.stats4.sigma: 5},
+        filter_signal={rot_aligner.cam_hi.stats4.centroid.y: 10},
         md=_md
     )
     # move to approximate rotation axis
@@ -289,8 +293,10 @@ def rot_pin_align(
         "rot_align",
         rot_motor,
         omega_start,
+        filter_signal={rot_aligner.cam_hi.stats4.centroid.y: 10},
         md=_md
     )
+
     yield from bps.mvr(rot_aligner.gc_positioner.real_y, -delta_y)
     yield from bps.sleep(0.1)
     yield from bps.mvr(rot_aligner.gc_positioner.real_z, -delta_z)
