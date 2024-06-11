@@ -1,16 +1,12 @@
-print(f"Loading {__file__}")
-
-from math import sin, cos, radians
-
-import numpy as np
-
-import epics
-
-import bluesky.plans as bp
-import bluesky.plan_stubs as bps
-import bluesky.preprocessors as bpp
-from bluesky.callbacks import LiveTable, LivePlot
 import os
+from bluesky.callbacks import LiveTable, LivePlot
+import bluesky.preprocessors as bpp
+import bluesky.plan_stubs as bps
+import bluesky.plans as bp
+import epics
+import numpy as np
+from math import sin, cos, radians
+print(f"Loading {__file__}")
 
 
 def simple_ascan(camera, stats, motor, start, end, steps):
@@ -19,7 +15,7 @@ def simple_ascan(camera, stats, motor, start, end, steps):
     Automatically plots the results.
     """
 
-    stats_name = "_".join((camera.name,stats)) if stats else camera.name
+    stats_name = "_".join((camera.name, stats)) if stats else camera.name
     try:
         motor_name = motor.readback.name
     except AttributeError:
@@ -77,7 +73,7 @@ def mirror_scan(mir, start, end, steps, gap=None, speed=None, camera=None):
             'slt_minus': slits2.i,
             'slt_ctr': slits2.x_ctr,
             'slt_gap': slits2.x_gap,
-            'camera': cam_7, # Hi-Mag
+            'camera': cam_7,  # Hi-Mag
             'encoder_idx': 2,
         },
         'kbv': {
@@ -86,19 +82,19 @@ def mirror_scan(mir, start, end, steps, gap=None, speed=None, camera=None):
             'slt_minus': slits2.b,
             'slt_ctr': slits2.y_ctr,
             'slt_gap': slits2.y_gap,
-            'camera': cam_7, # Hi-mag
+            'camera': cam_7,  # Hi-mag
             'encoder_idx': 3,
         },
     }
 
     m = mirrors[mir]
-    name        = m['name']
-    zebra       = m['zebra']
-    slt_minus   = m['slt_minus']
-    slt_ctr     = m['slt_ctr']
-    slt_gap     = m['slt_gap']
-    cam         = camera.cam if camera else m['camera'].cam
-    stats       = camera.stats4 if camera else m['camera'].stats4
+    name = m['name']
+    zebra = m['zebra']
+    slt_minus = m['slt_minus']
+    slt_ctr = m['slt_ctr']
+    slt_gap = m['slt_gap']
+    cam = camera.cam if camera else m['camera'].cam
+    stats = camera.stats4 if camera else m['camera'].stats4
     encoder_idx = m['encoder_idx']
 
     # Calculate parameters
@@ -127,7 +123,7 @@ def mirror_scan(mir, start, end, steps, gap=None, speed=None, camera=None):
 
     zebra.setup(
         master=encoder_idx,
-        arm_source=0, # soft
+        arm_source=0,  # soft
         gate_start=minus_start,
         gate_width=abs_move/steps/2,
         gate_step=abs_move/steps,
@@ -155,7 +151,8 @@ def mirror_scan(mir, start, end, steps, gap=None, speed=None, camera=None):
             self._centroid_y = stats.ts_centroid.y
             self._enc = getattr(zebra.pos_capt.data, f'enc{encoder_idx+1}')
 
-            self._data_sources = (self._centroid_x, self._centroid_y, self._enc)
+            self._data_sources = (
+                self._centroid_x, self._centroid_y, self._enc)
 
             super().__init__(*args, **kwargs)
 
@@ -178,8 +175,8 @@ def mirror_scan(mir, start, end, steps, gap=None, speed=None, camera=None):
 
             for i in range(self._last_point, min_len):
                 yield {
-                    'data': { sig.name: data[sig][i] for sig in data },
-                    'timestamps': { sig.name: timestamps[i] for sig in data },
+                    'data': {sig.name: data[sig][i] for sig in data},
+                    'timestamps': {sig.name: timestamps[i] for sig in data},
                     'time': cur_time
                 }
 
@@ -216,9 +213,10 @@ def mirror_scan(mir, start, end, steps, gap=None, speed=None, camera=None):
     ax2.set_ylabel('Centroid Y', color='b')
 
     @bpp.subs_decorator([lp1, lp2, LiveTable([y1, y2])])
-    @bpp.reset_positions_decorator([cam.acquire, cam.trigger_mode, slt_gap, #slt_ctr, <- this fails with FailedStatus
-                                stats.enable, stats.compute_centroid])
-    @bpp.reset_positions_decorator([slt_ctr.velocity]) # slt_ctr.velocity has to be restored before slt_ctr
+    @bpp.reset_positions_decorator([cam.acquire, cam.trigger_mode, slt_gap,  # slt_ctr, <- this fails with FailedStatus
+                                    stats.enable, stats.compute_centroid])
+    # slt_ctr.velocity has to be restored before slt_ctr
+    @bpp.reset_positions_decorator([slt_ctr.velocity])
     @bpp.run_decorator()
     def inner():
         # Prepare statistics plugin
@@ -229,12 +227,13 @@ def mirror_scan(mir, start, end, steps, gap=None, speed=None, camera=None):
 
         # Prepare Camera
         yield from bps.mv(cam.acquire, 0)      # Stop camera...
-        yield from bps.sleep(.5)               # ...and wait for the pipeline to empty.
+        # ...and wait for the pipeline to empty.
+        yield from bps.sleep(.5)
         yield from bps.mv(
             cam.trigger_mode, "Sync In 1",    # External Trigger
             cam.array_counter, 0,
         )
-        yield from bps.abs_set(cam.acquire, 1) # wait=False
+        yield from bps.abs_set(cam.acquire, 1)  # wait=False
 
         # Move to the starting positions
         yield from bps.mv(
@@ -340,11 +339,11 @@ def focus_scan(steps, step_size=2, speed=None, cam=cam_6, filename='test', folde
     else:
         start, end, total, encoder_idx = start_z, end_z, total_z, 2
 
-    print("Master motor:", {1:"y", 2:"z"}[encoder_idx])
+    print("Master motor:", {1: "y", 2: "z"}[encoder_idx])
 
     zebra.setup(
         master=encoder_idx,
-        arm_source=0, # soft
+        arm_source=0,  # soft
         gate_start=start,
         gate_width=total/steps/2,
         gate_step=total/steps,
@@ -363,16 +362,17 @@ def focus_scan(steps, step_size=2, speed=None, cam=cam_6, filename='test', folde
     )
 
     @bpp.reset_positions_decorator([cam.acquire, cam.trigger_mode, cam.min_x, cam.min_y,
-                                cam.size.size_x, cam.size.size_y, gonio.py, gonio.pz,
-                                tiff.file_write_mode, tiff.num_capture, tiff.auto_save,
-                                tiff.auto_increment, tiff.file_path, tiff.file_name,
-                                tiff.file_number, tiff.enable])
+                                    cam.size.size_x, cam.size.size_y, gonio.py, gonio.pz,
+                                    tiff.file_write_mode, tiff.num_capture, tiff.auto_save,
+                                    tiff.auto_increment, tiff.file_path, tiff.file_name,
+                                    tiff.file_number, tiff.enable])
     @bpp.reset_positions_decorator([gonio.py.velocity, gonio.pz.velocity])
     @bpp.run_decorator()
     def inner():
         # Prepare Camera
         yield from bps.mv(cam.acquire, 0)      # Stop camera...
-        yield from bps.sleep(.5)               # ...and wait for the pipeline to empty.
+        # ...and wait for the pipeline to empty.
+        yield from bps.sleep(.5)
         yield from bps.mv(
             cam.trigger_mode, "Sync In 1",    # External Trigger
             cam.array_counter, 0,
@@ -400,7 +400,7 @@ def focus_scan(steps, step_size=2, speed=None, cam=cam_6, filename='test', folde
 
         yield from bps.abs_set(tiff.capture, 1)
 
-        yield from bps.abs_set(cam.acquire, 1) # wait=False
+        yield from bps.abs_set(cam.acquire, 1)  # wait=False
 
         # Move to the starting positions
         yield from bps.mv(
@@ -439,13 +439,14 @@ def find_peak(det, mot, start, stop, steps):
 
     uid = yield from bp.rel_scan([det], mot, start, stop, steps)
     sp = '_setpoint' if mot is ivu_gap else '_user_setpoint'
-    
+
     if det.name == "bpm3":
         detector_response_name = det.name + '_sum_all'
     else:
         detector_response_name = det.name
-        
-    data = np.array(db[uid].table()[[detector_response_name, mot.name + sp]])[1:]
+
+    data = np.array(
+        db[uid].table()[[detector_response_name, mot.name + sp]])[1:]
 
     peak_idx = np.argmax(data[:, 0])
     peak_x = data[peak_idx, 1]
@@ -455,11 +456,17 @@ def find_peak(det, mot, start, stop, steps):
         m = ivu_gap.gap
     else:
         m = mot
-    print(f"Found peak for {m.name} at {peak_x} {m.egu} [BPM reading {peak_y}]")
+    print(
+        f"Found peak for {m.name} at {peak_x} {m.egu} [BPM reading {peak_y}]")
     return peak_x, peak_y
 
 
-def set_energy(energy,use_diode=False):
+@bpp.reset_positions_decorator([vdcm.p.SPMG, vdcm_hold_pitch, gov_rbt])
+def set_energy(energy, use_diode=True):
+
+    yield from bps.abs_set(gov_rbt, 'FM', wait=True)
+    yield from bps.abs_set(vdcm_hold_pitch, 0)
+
     #bpm = bpm3
     if use_diode:
         detector_ = keithley
@@ -467,48 +474,28 @@ def set_energy(energy,use_diode=False):
         detector_ = bpm3
 
     # Values on 2017-09-20 adjusted on march 18 2019
-    energies = [ 5000,  6000, 7112, 7950, 7951, 8000, 8052,  8980,  9660,  9881, 10000,
-                11000, 11564, 11867, 12000, 12400, 12658, 13000, 13475, 14000,
-                15000, 15250, 17040, 18000]
+    energies = [9500, 12000, 13475, 15000, 18000]
 
     # LookUp Tables
     LUT = {
-        ivu_gap: (energies, np.array([6.983, 7.965, 9.085, 9.999, 6.780, 6.790, 6.815, 7.365, 7.755,
-                             7.890, 7.960, 6.700, 6.940, 6.460, 6.510, 6.658,
-                             6.758, 6.890, 7.057, 7.255, 6.500, 6.574, 7.110, 6.500])*1000),
-        vdcm.g: (energies, 24*[14.900]),
-        vdcm.r:  (energies, 24*[5.787]),
-    }
-
-    # Last Good Position
-    LGP = {
-        vdcm.p:  6.4557,
-        kbm.vx:  0,
-        kbm.vy:  1.870,
-        kbm.vp: -3.669,
-        kbm.hx: -1.575,
-        kbm.hy:  0.152,
-        kbm.hp:  3.486
+        ivu_gap: (energies, np.array([7.642, 6.483, 7.040, 6.473, 6.465])*1000),
+        vdcm.g: (energies, [14.93, 14.83, 14.79, 14.75, 14.67]),
+        vdcm.r:  (energies, [5.891, 5.840, 5.810, 5.769, 5.690]),
+        vdcm.p: (energies, [6.3305, 6.3262, 6.3245, 6.3214, 6.3185])
     }
 
     # Lookup Table
     def lut(motor):
         return motor, np.interp(energy, *LUT[motor])
 
-    # Last Good Position
-    def lgp(motor):
-        return motor, LGP[motor]
+    yield from bps.mv(vdcm.p.SPMG, 3)
 
     yield from bps.mv(
         *lut(ivu_gap),   # Set IVU Gap interpolated position
         vdcm.e, energy,  # Set Bragg Energy pseudomotor
         *lut(vdcm.g),    # Set DCM Gap interpolated position
         *lut(vdcm.r),     # Set DCM Roll interpolated position
-        *lgp(vdcm.p),     # Set Pitch to last known good position
-
-        # Set KB from known good setpoints
-        #*lgp(kbm.vx), *lgp(kbm.vy), *lgp(kbm.vp),
-        #*lgp(kbm.hx), *lgp(kbm.hy), *lgp(kbm.hp)
+        *lut(vdcm.p),     # Set Pitch to last known good position
     )
 
     # Setup plots
@@ -526,7 +513,7 @@ def set_energy(energy,use_diode=False):
             det_name = detector.name + '_sum_all'
         else:
             det_name = detector.name
-            
+
         mot_name = motor.name + '_setpoint' if motor is ivu_gap else motor.name + '_user_setpoint'
 
         # Prevent going below the lower limit or above the high limit
@@ -550,11 +537,11 @@ def set_energy(energy,use_diode=False):
     # Scan DCM Pitch
     peak_x, peak_y = yield from find_peak_inner(detector_, vdcm.p, -0.02, 0.02, 41, ax1)
     yield from bps.mv(vdcm.p, peak_x)
+    yield from bps.abs_set(vdcm_hold_pitch_here, 1, wait=True)
 
     # Scan IVU Gap
     peak_x, peak_y = yield from find_peak_inner(detector_, ivu_gap, -40, 40, 21, ax2)
     yield from bps.mv(ivu_gap, peak_x)
-
 
     # TODO: DAMA must fix this on the next visit (no cagets!).
     # Get image
@@ -565,7 +552,7 @@ def set_energy(energy,use_diode=False):
     ax3.imshow(image.reshape(height, width), cmap='jet')
 
 
-def vdcm_rock_test(vdcm_p_range=0.03, vdcm_p_points=61, logging = True):
+def vdcm_rock_test(vdcm_p_range=0.03, vdcm_p_points=61, logging=True):
     """
     Scan vdcm crystal 2 pitch to maximize flux on BPM1
 
@@ -581,7 +568,7 @@ def vdcm_rock_test(vdcm_p_range=0.03, vdcm_p_points=61, logging = True):
     yield from bps.mv(
         vdcm.p, 6.5040     # Set Pitch interpolated position
     )
-    
+
     ax1 = plt.subplot(111)
     # Setup plots
     ax1.grid(True)
@@ -602,6 +589,6 @@ def vdcm_rock_test(vdcm_p_range=0.03, vdcm_p_points=61, logging = True):
     # Scan DCM Pitch
     peak_x, peak_y = yield from find_peak_inner(bpm3, vdcm.p, -vdcm_p_range, vdcm_p_range, vdcm_p_points, ax1)
     yield from bps.mv(vdcm.p, peak_x)
-    
+
     if logging:
         print('BPM3 sum = {:.4g} A'.format(bpm3.sum_all.get()))

@@ -13,10 +13,6 @@ class TIFFPluginWithFileStore(TIFFPlugin, FileStoreTIFF):
     pass
 
 
-class EpicsMotorSPMG(EpicsMotor):
-    SPMG = Cpt(EpicsSignal, ".SPMG")
-
-
 class TopAlignCam(StandardProsilica):
     _default_read_attrs = ["cv1", "tiff"]
     cv1 = Cpt(CVPlugin, "CV1:")

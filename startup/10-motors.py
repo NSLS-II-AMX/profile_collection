@@ -1,6 +1,10 @@
 from ophyd import PVPositionerPC
-from ophyd import Device, Component as Cpt, EpicsMotor, EpicsSignalRO
+from ophyd import Device, Component as Cpt, EpicsMotor, EpicsSignalRO, EpicsSignal
 print(f"Loading {__file__}")
+
+
+class EpicsMotorSPMG(EpicsMotor):
+    SPMG = Cpt(EpicsSignal, ".SPMG")
 
 
 class XYMotor(Device):
@@ -53,7 +57,7 @@ class FESlits(Device):
 class VerticalDCM(Device):
     b = Cpt(EpicsMotor, "-Ax:B}Mtr")
     g = Cpt(EpicsMotor, "-Ax:G}Mtr")
-    p = Cpt(EpicsMotor, "-Ax:P}Mtr")
+    p = Cpt(EpicsMotorSPMG, "-Ax:P}Mtr")
     r = Cpt(EpicsMotor, "-Ax:R}Mtr")
     e = Cpt(EpicsMotor, "-Ax:E}Mtr")
     w = Cpt(EpicsMotor, "-Ax:W}Mtr")
@@ -161,3 +165,9 @@ atten = Attenuator("XF:17IDB-OP:AMX{Attn:BCU", name="atten")
 
 # Collimator
 colli = Collimator("XF:17IDB-ES:AMX{Colli:1", name="colli")
+
+# vdcm correct pitch hold
+vdcm_hold_pitch = EpicsSignal(
+    "XF:17ID-ES:AMX{CorrectDCMp}-SP", name="vdcm_hold_pitch")
+vdcm_hold_pitch_here = EpicsSignal(
+    "XF:17ID-ES:AMX{CorrectDCM}Renorm.PROC", name="vdcm_hold_pitch_here")
