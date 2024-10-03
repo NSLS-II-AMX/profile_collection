@@ -7,7 +7,12 @@ from ophyd import (
 )
 from ophyd.pseudopos import pseudo_position_argument, real_position_argument
 from ophyd import PseudoPositioner, PseudoSingle, Staged
+import requests
 print(f"Loading {__file__}")
+
+op_cycle = requests.get(
+    'https://api.nsls2.bnl.gov/v1/facility/nsls2/cycles/current'
+).json()['cycle']
 
 
 class GonioCameraPositioner(PseudoPositioner):
@@ -181,7 +186,7 @@ class RotAlignHighMag(StandardProsilica):
     jpeg = Cpt(
         JPEGPluginWithFileStore,
         "JPEG1:",
-        write_path_template="/nsls2/data/amx/shared/calibration/2024-1/rot_axis",
+        write_path_template=f"/nsls2/data/amx/shared/calibration/{op_cycle}/rot_axis",
     )
 
     def __init__(self, *args, **kwargs):
@@ -335,7 +340,7 @@ class RotAlignHighMag(StandardProsilica):
             self._disable_stats_plugins()
 
         elif self.cam_mode.get() == "beam_align_check":
-            self.jpeg.write_path_template = "/nsls2/data/amx/shared/calibration/2024-1/beam_align"
+            self.jpeg.write_path_template = f"/nsls2/data/amx/shared/calibration/{op_cycle}/beam_align"
             self.stage_sigs.update(
                 [
                     ("cam.acquire_time", 0.6),
