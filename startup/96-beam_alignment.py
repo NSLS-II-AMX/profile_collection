@@ -150,4 +150,4 @@ class SmartMagnet(Device):
 
 smart_magnet = SmartMagnet("XF:17IDB-ES:AMX{Wago:1}", name="smart_magnet")
 mxatten = MXAttenuator("XF:17IDB-OP:AMX{Attn:BCU}", name="mxatten")
-kbt = KBTweaker("XF:17ID-ES:AMX{Best:1", name="kbt")
+kbt = KBTweaker("XF:17ID-ES:AMX{Best:2", name="kbt")
