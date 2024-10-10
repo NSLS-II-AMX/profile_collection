@@ -59,8 +59,8 @@ for camera in all_standard_pros:
 
 
 class Keithley(Device):
-    current = Cpt(EpicsSignalRO, "XF:17IDB-BI:AMX{Keith:1}readFloat", egu='A')
-    flux = Cpt(EpicsSignalRO, "XF:17IDA-OP:AMX{Mono:DCM-dflux}", egu='ph/s')
+    current = Cpt(EpicsSignalRO, "XF:17IDB-BI:AMX{Keith:1}readFloat")
+    flux = Cpt(EpicsSignalRO, "XF:17IDA-OP:AMX{Mono:DCM-dflux}")
 
 
 keithley = Keithley("", name="keithley")
