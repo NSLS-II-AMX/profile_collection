@@ -8,6 +8,7 @@ Created on Tue Sep 27 16:39:13 2022
 
 from toolz import partition
 from bluesky.preprocessors import reset_positions_decorator
+from decimal import Decimal
 print(f"Loading {__file__}")
 
 
@@ -57,6 +58,44 @@ def cleanup_beam_align():
     # safely disable jpeg plugin
     yield from bps.abs_set(cam_hi_ba.jpeg.auto_save, 0)
     yield from bps.abs_set(cam_hi_ba.cam_mode, "beam_align")
+
+
+def cleanup_flux_measurement():
+    yield from bps.mv(sht.r, 20)  # close shutter
+    yield from set_mxatten(0.01)
+
+
+def set_mxatten(value, wait_time=5):
+    yield from bps.abs_set(mxatten.setpoint, value)
+    yield from bps.abs_set(mxatten.actuate, 1)
+    yield from bps.sleep(wait_time)
+
+
+@finalize_decorator(cleanup_flux_measurement)
+@reset_positions_decorator([gov_rbt])
+def flux_measurement():
+    """bluesky plan to record flux at keithley diode"""
+
+    # configure end station
+    yield from bps.abs_set(gov_rbt, 'FM', wait=True)
+    yield from bps.mv(sht.r, 0)
+
+    # safety checks
+    yield from set_mxatten(0.01, wait_time=6)
+    scan_uid = yield from bp.count([keithley], 1)
+    flux_1pct = db[scan_uid].table()['keithley_flux'][1]
+    if flux_1pct < 4.8e10:
+        raise Exception("flux is too low, manual inspection required")
+
+    # measure flux and record, print to console in human readable form
+    yield from set_mxatten(1.0, wait_time=8)
+    scan_uid = yield from bp.count([keithley], 1)
+    flux_100pct = db[scan_uid].table()['keithley_flux'][1]
+    current_100pct = db[scan_uid].table()['keithley_current'][1]
+    flux_100pct_dec = f'{Decimal(flux_100pct):.2E}'
+    print(f'keithley flux (ph/s): {flux_100pct_dec}')
+    print(f'keithley current (mA): {current_100pct*1000}')
+    yield from bps.abs_set(write_flux, 1)
 
 
 @finalize_decorator(cleanup_beam_align)
@@ -160,3 +199,9 @@ def beam_align():
     add_cross(_fp)
     t_ = db[scan_uid].table()['time'][1]
     add_text_bottom_left(_fp, f'{t_}')
+
+
+def beam_align_flux():
+    """bluesky plan to align with KB piezos and then record flux with diode"""
+    yield from beam_align()
+    yield from flux_measurement()

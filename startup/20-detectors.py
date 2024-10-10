@@ -1,5 +1,9 @@
-print(f"Loading {__file__}")
-
+from ophyd import Component as Cpt
+from ophyd.areadetector.filestore_mixins import (
+    FileStoreTIFFIterativeWrite,
+    FileStoreHDF5IterativeWrite,
+)
+import ophyd.areadetector.cam as cam
 from ophyd import (
     SingleTrigger,
     TIFFPlugin,
@@ -14,15 +18,7 @@ from ophyd import (
     AreaDetector,
     EpicsSignalRO,
 )
-
-import ophyd.areadetector.cam as cam
-
-from ophyd.areadetector.filestore_mixins import (
-    FileStoreTIFFIterativeWrite,
-    FileStoreHDF5IterativeWrite,
-)
-
-from ophyd import Component as Cpt
+print(f"Loading {__file__}")
 
 
 class StandardProsilica(SingleTrigger, ProsilicaDetector):
@@ -61,4 +57,10 @@ for camera in all_standard_pros:
     camera.stats5.read_attrs = ["total", "centroid"]
     # camera.tiff.read_attrs = []  # leaving just the 'image'
 
-keithley = EpicsSignalRO("XF:17IDB-BI:AMX{Keith:1}readFloat", name="keithley")
+
+class Keithley(Device):
+    current = Cpt(EpicsSignalRO, "XF:17IDB-BI:AMX{Keith:1}readFloat", egu='A')
+    flux = Cpt(EpicsSignalRO, "XF:17IDA-OP:AMX{Mono:DCM-dflux}", egu='ph/s')
+
+
+keithley = Keithley("", name="keithley")
