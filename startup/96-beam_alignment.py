@@ -31,7 +31,6 @@ from ophyd.status import SubscriptionStatus
 from ophyd.pv_positioner import (
     PVPositionerComparator,
     PVPositionerIsClose,
-    PVPositioner
 )
 
 

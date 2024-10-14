@@ -7,12 +7,8 @@ from ophyd import (
 )
 from ophyd.pseudopos import pseudo_position_argument, real_position_argument
 from ophyd import PseudoPositioner, PseudoSingle, Staged
-import requests
 print(f"Loading {__file__}")
 
-op_cycle = requests.get(
-    'https://api.nsls2.bnl.gov/v1/facility/nsls2/cycles/current'
-).json()['cycle']
 
 
 class GonioCameraPositioner(PseudoPositioner):

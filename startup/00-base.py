@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 import uuid
 import os
+import requests
 print(f"Loading {__file__}")
 
 
@@ -79,6 +80,11 @@ try:
     RE.md = PersistentDict(runengine_metadata_dir)
 except ImportError:
     print('Older bluesky did not have PersistentDict, moving on.')
+
+
+op_cycle = requests.get(
+    'https://api.nsls2.bnl.gov/v1/facility/nsls2/cycles/current'
+).json()['cycle']
 
 # Optional: set any metadata that rarely changes.
 RE.md['beamline_id'] = 'AMX'
