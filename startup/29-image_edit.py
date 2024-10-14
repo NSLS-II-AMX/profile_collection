@@ -10,13 +10,15 @@ import cv2
 print(f"Loading {__file__}")
 
 
-def add_cross(image_path, cross_color=(0, 0, 255)):
+def add_cross(image_path, cross_color=(0, 0, 255), center=None):
     # Load the image
     image = cv2.imread(image_path)
-
     # Get the center coordinates
-    height, width, _ = image.shape
-    center_x, center_y = width // 2, height // 2
+    if center:
+        center_x, center_y = center[0], center[1]
+    else:
+        height, width, _ = image.shape
+        center_x, center_y = width // 2, height // 2
 
     # Define the size of the cross and its color
     cross_size = 20
@@ -27,7 +29,7 @@ def add_cross(image_path, cross_color=(0, 0, 255)):
         (center_x - cross_size, center_y),
         (center_x + cross_size, center_y),
         cross_color,
-        1
+        2
     )
 
     # Draw the vertical line of the cross
@@ -36,7 +38,7 @@ def add_cross(image_path, cross_color=(0, 0, 255)):
         (center_x, center_y - cross_size),
         (center_x, center_y + cross_size),
         cross_color,
-        1
+        2
     )
 
     # Save the result
@@ -52,8 +54,8 @@ def add_text_bottom_left(image_path, *args, text_color=(0, 0, 255)):
 
     # Define font and other text-related parameters
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 0.5
-    font_thickness = 1
+    font_scale = 1
+    font_thickness = 2
 
     # Calculate the position for the first text
     initial_x = 10
@@ -66,7 +68,7 @@ def add_text_bottom_left(image_path, *args, text_color=(0, 0, 255)):
                     font_scale, text_color, font_thickness, cv2.LINE_AA)
 
         # Update the y-coordinate for the next text
-        initial_y -= 20  # You can adjust the spacing between lines as needed
+        initial_y -= 30  # You can adjust the spacing between lines as needed
 
     # Save the result
     cv2.imwrite(image_path, image)

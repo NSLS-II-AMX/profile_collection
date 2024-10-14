@@ -31,6 +31,7 @@ from ophyd.status import SubscriptionStatus
 from ophyd.pv_positioner import (
     PVPositionerComparator,
     PVPositionerIsClose,
+    PVPositioner
 )
 
 
@@ -54,6 +55,96 @@ class SpecialProsilica(ProsilicaDetector):
                 ("cc1.nd_array_port", "CC1"),
                 ("roi4.min_xyz.min_x", 818),
                 ("roi4.min_xyz.min_y", 400),
+            ]
+        )
+
+
+class Screen4Cam(StandardProsilica):
+    cv1 = Cpt(CVPlugin, "CV1:")
+    jpeg = Cpt(
+        JPEGPluginWithFileStore,
+        "JPEG1:",
+        write_path_template=f"/nsls2/data/amx/shared/calibration/{op_cycle}/screen4",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.read_attrs = [
+            "cv1",
+            "jpeg",
+            "cam"
+        ]
+
+        [
+            _plugin.enable_on_stage()
+            for _plugin in [
+                self.cv1,
+                self.proc1,
+                self.trans1,
+            ]
+        ]
+
+        self.cam.read_attrs = [
+            "size",
+            "min_x",
+            "min_y",
+            "max_size"
+        ]
+
+        self.cam.size.read_attrs = [
+            "size_x",
+            "size_y"
+        ]
+
+        self.cam.max_size.read_attrs = [
+            "max_size_x",
+            "max_size_y"
+        ]
+
+        self.cv1.outputs.read_attrs = [
+            "output1",
+            "output2",
+
+        ]  # output1 is x pos of centroid, output2 is y position (AD conv.)
+
+        self._update_stage_sigs()
+
+    def _update_stage_sigs(self, *args, **kwargs):
+        self.stage_sigs.clear()
+        self.stage_sigs.update(
+            [
+                ("cam.acquire", 0),
+                ("cam.image_mode", 1),
+            ]
+        )
+        self.jpeg.stage_sigs.clear()  # must disable inherited defaults
+
+        self.jpeg.write_path_template = f"/nsls2/data/amx/shared/calibration/{op_cycle}/screen4"
+        self.stage_sigs.update(
+            [
+                ("cam.acquire_time", 0.25),
+                ("cam.acquire_period", 1.0),
+                (
+                    "cam.num_images",
+                    1,
+                ),  # this reduces missed triggers, why?
+                ("cam.trigger_mode", 0),
+                ("jpeg.enable", 1),
+                ("jpeg.nd_array_port", "TRANS1"),
+                ("jpeg.file_write_mode", 0),
+                ("jpeg.num_capture", 1),
+                ("jpeg.auto_save", 1),
+                ("cv1.enable", 1),
+                ("cv1.nd_array_port", "TRANS1"),
+                ("cv1.func_sets.func_set1", "None"),
+                ("cv1.func_sets.func_set2", "Centroid Identification"),
+                ("cv1.func_sets.func_set3", "None"),
+                ("cv1.inputs.input1", 1),  # num. contours
+                ("cv1.inputs.input2", 3),  # blur
+                ("cv1.inputs.input3", 100),  # threshold value
+                ("cv1.inputs.input4", 500000),  # upper size
+                ("cv1.inputs.input5", 2000),  # min. size
+                ("proc1.data_type_out", "UInt8"),
             ]
         )
 
@@ -148,9 +239,21 @@ class SmartMagnet(Device):
     )
 
 
+# beam align/flux
 write_flux = EpicsSignal(
     "XF:17IDA-OP:AMX{Mono:DCM-dflux}Calc.PROC", name="write_flux")
-
 smart_magnet = SmartMagnet("XF:17IDB-ES:AMX{Wago:1}", name="smart_magnet")
 mxatten = MXAttenuator("XF:17IDB-OP:AMX{Attn:BCU}", name="mxatten")
 kbt = KBTweaker("XF:17ID-ES:AMX{Best:2", name="kbt")
+
+# screen 4
+screen4_cam = Screen4Cam("XF:17IDB-BI:AMX{FS:4-Cam:1}", name="screen4")
+screen4_insert = EpicsSignal(
+    "XF:17IDB-BI:AMX{BPM:2-Ax:Y}Pos-Sts",
+    write_pv="XF:17IDB-BI:AMX{BPM:2-Ax:Y}Cmd:In-Cmd",
+    name="screen4_insert",
+)
+screen4_retract = EpicsSignal(
+    "XF:17IDB-BI:AMX{BPM:2-Ax:Y}Cmd:Out-Cmd",
+    name="screen4_retract"
+)

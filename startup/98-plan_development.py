@@ -65,6 +65,14 @@ def cleanup_flux_measurement():
     yield from set_mxatten(0.01)
 
 
+def cleanup_screen4_centroid():
+    yield from bps.mv(screen4_cam.jpeg.auto_save, 0, settle_time=1)
+    # for subsequent manual inspection
+    yield from bps.mv(screen4_cam.cam.acquire, 1, settle_time=1)
+    yield from bps.mv(screen4_cam.cam.acquire, 0, settle_time=0)
+    yield from bps.mv(screen4_retract, 1, settle_time=3)
+
+
 def set_mxatten(value, wait_time=5):
     yield from bps.abs_set(mxatten.setpoint, value)
     yield from bps.abs_set(mxatten.actuate, 1)
@@ -199,6 +207,47 @@ def beam_align():
     add_cross(_fp)
     t_ = db[scan_uid].table()['time'][1]
     add_text_bottom_left(_fp, f'{t_}')
+
+
+@finalize_decorator(cleanup_screen4_centroid)
+def screen4_centroid():
+
+    # begin from safe state
+    yield from bps.abs_set(gov_rbt, 'SE', wait=True)
+
+    # insert yag
+    yield from bps.mv(screen4_insert, 1, settle_time=4)
+
+    yield from bps.abs_set(screen4_cam.jpeg.auto_save, 1, wait=True)
+    scan_uid = yield from bp.count([screen4_cam], 1)
+    scan_df = db[scan_uid].table()
+
+    # use x directly
+    center_x = scan_df['screen4_cv1_outputs_output1'][1].astype(np.int64)
+
+    # need to invert y, using camera size
+    size_h = scan_df['screen4_cam_size_size_x'][1]  # due to transform
+    center_y = scan_df['screen4_cv1_outputs_output2'][1].astype(np.int64)
+
+    if center_y < 1 or center_x < 1:
+        raise Exception("No centroid detected on screen 4!")
+
+    center_y = (size_h - center_y).astype(np.int64)
+
+    rd = [k for k in db[scan_uid].documents('primary') if k[0] == 'resource']
+    filename = rd[-1][-1]['resource_kwargs']['filename']
+    resource_path = rd[-1][-1]['resource_path']
+    template = rd[-1][-1]['resource_kwargs']['template']
+    root = rd[-1][-1]['root']
+    full_resource_path = root + resource_path + '/'
+
+    # grab the 0 index, single image
+    _fp = template % (full_resource_path, filename, 0)
+    add_cross(_fp, center=(center_x, center_y))
+    t_ = db[scan_uid].table()['time'][1]
+    add_text_bottom_left(
+        _fp, f'center x: {center_x}', f'center y: {center_y}', f'{t_}'
+    )
 
 
 def beam_align_flux():
