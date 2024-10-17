@@ -205,6 +205,8 @@ def rot_pin_align_cleanup():
     yield from bps.abs_set(rot_aligner.cam_hi.jpeg.file_write_mode, 0)
     yield from bps.abs_set(rot_aligner.cam_hi.jpeg.enable, 0)
     yield from bps.abs_set(rot_aligner.cam_hi.jpeg.auto_save, 0)
+    yield from bps.mv(goniomon, 1, settle_time=1)
+    yield from bps.mv(govmon, 1, settle_time=1)
 
 
 @finalize_decorator(rot_pin_align_cleanup)
@@ -245,7 +247,12 @@ def rot_pin_align(
     if gov_rbt.state.get() == 'M':
         print('found governor in M, awaiting sentinel recovery')
         yield from bps.sleep(15)
-    yield from bps.mv(gov_rbt, 'PA')
+
+    yield from bps.abs_set(gov_rbt, 'PA', wait=True)
+
+    # deactivate govmon before alignment
+    yield from bps.mv(goniomon, 0, settle_time=1)
+    yield from bps.mv(govmon, 0, settle_time=1)
 
     # move to last good gonio xyz values
     yield from bps.mv(rot_aligner.gc_positioner.real_y, start[1])
