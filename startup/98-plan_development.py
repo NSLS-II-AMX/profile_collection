@@ -58,11 +58,12 @@ def cleanup_beam_align():
     # safely disable jpeg plugin
     yield from bps.abs_set(cam_hi_ba.jpeg.auto_save, 0)
     yield from bps.abs_set(cam_hi_ba.cam_mode, "beam_align")
+    yield from set_mxatten('medium_flux')
 
 
 def cleanup_flux_measurement():
     yield from bps.mv(sht.r, 20)  # close shutter
-    yield from set_mxatten(0.01)
+    yield from set_mxatten('medium_flux')
 
 
 def cleanup_screen4_centroid():
@@ -73,9 +74,29 @@ def cleanup_screen4_centroid():
     yield from bps.mv(screen4_retract, 1, settle_time=3)
 
 
-def set_mxatten(value, wait_time=5):
-    yield from bps.abs_set(mxatten.setpoint, value)
-    yield from bps.abs_set(mxatten.actuate, 1)
+def set_mxatten(flux_setting, wait_time=1):
+
+    atten_dict = {
+        'low_flux': [
+            mxatten.atten1, 0,
+            mxatten.atten2, -3,
+            mxatten.atten3, -3,
+            mxatten.atten4, -21
+        ],
+        'medium_flux': [
+            mxatten.atten1, 0,
+            mxatten.atten2, -6,
+            mxatten.atten3, 0,
+            mxatten.atten4, -15
+        ],
+        'high_flux': [
+            mxatten.atten1, 0,
+            mxatten.atten2, 0,
+            mxatten.atten3, 0,
+            mxatten.atten4, 0
+        ]
+    }
+    yield from bps.mv(*atten_dict[flux_setting])
     yield from bps.sleep(wait_time)
 
 
@@ -89,14 +110,14 @@ def flux_measurement():
     yield from bps.mv(sht.r, 0)
 
     # safety checks
-    yield from set_mxatten(0.01, wait_time=6)
+    yield from set_mxatten('medium_flux', wait_time=5)
     scan_uid = yield from bp.count([keithley], 1)
     flux_1pct = db[scan_uid].table()['keithley_flux'][1]
     if flux_1pct < 4.8e10:
         raise Exception("flux is too low, manual inspection required")
 
     # measure flux and record, print to console in human readable form
-    yield from set_mxatten(1.0, wait_time=8)
+    yield from set_mxatten('high_flux', wait_time=5)
     scan_uid = yield from bp.count([keithley], 1)
     flux_100pct = db[scan_uid].table()['keithley_flux'][1]
     current_100pct = db[scan_uid].table()['keithley_current'][1]
@@ -118,8 +139,7 @@ def beam_align():
         raise Exception("Sample mounted on gonio! Avoided collision")
 
     # wait for attenuators to finish moving, due to IOC
-    yield from bps.abs_set(mxatten, 0.002)
-    yield from bps.sleep(5)
+    yield from set_mxatten('low_flux', wait_time=5)
 
     # transition to BL and open shutter
     yield from bps.abs_set(gov_rbt, "BL", wait=True)
