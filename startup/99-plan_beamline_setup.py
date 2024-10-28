@@ -48,6 +48,12 @@ def home_pins():
     yield from bps.mv(gonio.o, 0)
 
 
+def do_all():
+    yield from screen4_centroid()
+    yield from rot_pin_align_with_robot()
+    yield from beam_align_flux()
+
+
 def test_home_pins(n):
     for k in range(n):
         yield from bps.abs_set(gov_rbt, 'SE', wait=True)
