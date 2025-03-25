@@ -82,9 +82,13 @@ except ImportError:
     print('Older bluesky did not have PersistentDict, moving on.')
 
 
-op_cycle = requests.get(
-    'https://api.nsls2.bnl.gov/v1/facility/nsls2/cycles/current'
-).json()['cycle']
+try:
+    op_cycle = requests.get(
+        'https://api.nsls2.bnl.gov/v1/facility/nsls2/cycles/current'
+    ).json()['cycle']
+except ConnectionError as e:
+    print(f"ConnectionError when getting current cycle: {e}. continuing")
+    op_cycle = "2025-1"
 
 # Optional: set any metadata that rarely changes.
 RE.md['beamline_id'] = 'AMX'
