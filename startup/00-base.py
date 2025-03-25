@@ -13,6 +13,8 @@ from pathlib import Path
 import uuid
 import os
 import requests
+from requests.exceptions import ConnectionError
+
 print(f"Loading {__file__}")
 
 
