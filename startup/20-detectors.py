@@ -42,6 +42,7 @@ class StandardProsilica(SingleTrigger, ProsilicaDetector):
 # cam_fs2 = StandardProsilica('XF:17IDA-BI:AMX{FS:2-Cam:1}', name='cam_fs2')
 # cam_fs3 = StandardProsilica('XF:17IDA-BI:AMX{FS:3-Cam:1}', name='cam_fs3')
 # cam_fs4 = StandardProsilica('XF:17IDB-BI:AMX{FS:4-Cam:1}', name='cam_fs4')
+print("Instantiating StandardProsilica cameras...")
 cam_6 = StandardProsilica("XF:17IDB-ES:AMX{Cam:6}", name="cam_6")
 cam_7 = StandardProsilica("XF:17IDB-ES:AMX{Cam:7}", name="cam_7")
 xeye = StandardProsilica("XF:17IDB-ES:AMX{Cam:9}", name="xeye")
@@ -62,5 +63,5 @@ class Keithley(Device):
     current = Cpt(EpicsSignalRO, "XF:17IDB-BI:AMX{Keith:1}readFloat")
     flux = Cpt(EpicsSignalRO, "XF:17IDA-OP:AMX{Mono:DCM-dflux}")
 
-
+print("Instantiating Keithley...")
 keithley = Keithley("", name="keithley")
