@@ -61,7 +61,7 @@ try:
 
     # EpicsSignalBase.set_default_timeout(timeout=10, connection_timeout=10)  # old style
     EpicsSignalBase.set_defaults(
-        timeout=30, connection_timeout=30)  # new style
+        timeout=60, connection_timeout=60)  # new style
 
 except ImportError:
     pass
