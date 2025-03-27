@@ -53,13 +53,14 @@ try:
         self._ensure_connected(self._read_pv, self._write_pv, timeout=timeout)
         # print(f'{print_now()}: waited for {self.name} to connect for {time.time() - start:.4f} s.')
 
-#    EpicsSignalBase.wait_for_connection = wait_for_connection_base
+    EpicsSignalBase.wait_for_connection = wait_for_connection_base
     EpicsSignal.wait_for_connection = wait_for_connection
     ###############################################################################
 
     from ophyd.signal import EpicsSignalBase
 
     # EpicsSignalBase.set_default_timeout(timeout=10, connection_timeout=10)  # old style
+
     EpicsSignalBase.set_defaults(
         timeout=60, connection_timeout=60)  # new style
 
