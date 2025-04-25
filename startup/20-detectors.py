@@ -35,7 +35,6 @@ class StandardProsilica(SingleTrigger, ProsilicaDetector):
     stats4 = Cpt(StatsPlugin, "Stats4:")
     stats5 = Cpt(StatsPlugin, "Stats5:")
 
-
 # cam_fs1 = StandardProsilica('XF:17IDA-BI:AMX{FS:1-Cam:1}', name='cam_fs1')
 # cam_mono = StandardProsilica('XF:17IDA-BI:AMX{Mono:DCM-Cam:1}', name='cam_mono')
 # comment out more unused cameras

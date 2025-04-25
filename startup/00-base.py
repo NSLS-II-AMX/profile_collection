@@ -1,6 +1,6 @@
 from bluesky.preprocessors import relative_set_decorator, finalize_decorator
 from ophyd.signal import EpicsSignalBase
-from ophyd.areadetector.filestore_mixins import resource_factory
+#from ophyd.areadetector.filestore_mixins import resource_factory
 from ophyd import Component, Device, EpicsSignal
 from IPython import get_ipython
 import numpy as np
@@ -8,11 +8,14 @@ import nslsii
 import matplotlib.pyplot
 import matplotlib
 import appdirs
-import time
+import time as ttime
 from pathlib import Path
 import uuid
 import os
 import requests
+import redis
+from redis_json_dict import RedisJSONDict
+
 print(f"Loading {__file__}")
 
 
@@ -33,7 +36,7 @@ try:
         if timeout is DEFAULT_CONNECTION_TIMEOUT:
             timeout = self.connection_timeout
         # print(f'{print_now()}: waiting for {self.name} to connect within {timeout:.4f} s...')
-        start = time.time()
+        start = ttime.time()
         try:
             self._ensure_connected(self._read_pv, timeout=timeout)
             # print(f'{print_now()}: waited for {self.name} to connect for {time.time() - start:.4f} s.')
@@ -47,7 +50,7 @@ try:
         if timeout is DEFAULT_CONNECTION_TIMEOUT:
             timeout = self.connection_timeout
         # print(f'{print_now()}: waiting for {self.name} to connect within {timeout:.4f} s...')
-        start = time.time()
+        start = ttime.time()
         self._ensure_connected(self._read_pv, self._write_pv, timeout=timeout)
         # print(f'{print_now()}: waited for {self.name} to connect for {time.time() - start:.4f} s.')
 
@@ -64,22 +67,28 @@ try:
 except ImportError:
     pass
 
+uri = "info.amx.nsls2.bnl.gov"
+# # Provide an endstation prefix, if needed, with a trailing "-"
+new_md = RedisJSONDict(redis.Redis(uri), prefix="")
+BEAMLINE_ID = 'amx'
 
 nslsii.configure_base(get_ipython().user_ns, 'amx', bec=True, pbar=False,
                       publish_documents_with_kafka=True)
 
+RE.md = new_md
+
 # Disable plots via BestEffortCallback:
 bec.disable_plots()
 
-try:
-    from bluesky.utils import PersistentDict
-    runengine_metadata_dir = appdirs.user_data_dir(appname="bluesky") / Path(
-        "runengine-metadata"
-    )
-    # PersistentDict will create the directory if it does not exist
-    RE.md = PersistentDict(runengine_metadata_dir)
-except ImportError:
-    print('Older bluesky did not have PersistentDict, moving on.')
+#try:
+#    from bluesky.utils import PersistentDict
+#    runengine_metadata_dir = appdirs.user_data_dir(appname="bluesky") / Path(
+#        "runengine-metadata"
+#    )
+#    # PersistentDict will create the directory if it does not exist
+#    RE.md = PersistentDict(runengine_metadata_dir)
+#except ImportError:
+#    print('Older bluesky did not have PersistentDict, moving on.')
 
 
 op_cycle = requests.get(
@@ -87,4 +96,4 @@ op_cycle = requests.get(
 ).json()['cycle']
 
 # Optional: set any metadata that rarely changes.
-RE.md['beamline_id'] = 'AMX'
+# RE.md['beamline_id'] = 'AMX'
